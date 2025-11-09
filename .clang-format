@@ -1,0 +1,11 @@
+IndentWidth: 4
+TabWidth: 4
+SortIncludes: false
+ColumnLimit: 80
+BreakBeforeBraces: Allman
+AlignAfterOpenBracket: true
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
+BinPackArguments: false
+AllowShortFunctionsOnASingleLine: Empty

@@ -1,0 +1,12 @@
+.cache
+doc
+html
+latex
+subprojects/packagecache
+subprojects/libgcrypt*/
+*vgcore*
+build/*
+build
+core
+*.blend1
+subprojects/SDL
