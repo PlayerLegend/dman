@@ -15,7 +15,7 @@ struct edid
 {
     digest::sha256 digest;
     std::vector<uint8_t> raw;
-    edid();
+    edid() {};
     edid(const void *data, size_t size);
 };
 enum class rotation : uint8_t

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
+#include <cmath>
 
 void print_usage(const char *prog_name)
 {
@@ -75,27 +76,6 @@ std::vector<std::string> split_words(const std::string &line)
     return words;
 }
 
-// class config_block
-// {
-//     std::string name;
-//     std::vector<std::string> lines;
-
-//   public:
-//     config_block(std::stringstream &ss)
-//     {
-//         name = get_next_nonempty_line(ss);
-//         std::string line;
-//         while (std::getline(ss, line))
-//         {
-//             if (!starts_with_space(line))
-//             {
-//                 break;
-//             }
-//             lines.push_back(strip_whitespace(line));
-//         }
-//     }
-// };
-
 class config
 {
   public:
@@ -109,6 +89,12 @@ class config
         double rate = 0;
         enum ::display::rotation rotation;
         bool primary = false;
+
+        bool operator==(const display::mode &mode) const
+        {
+            return (width == mode.width) && (height == mode.height) &&
+                   (rate == 0 || std::fabs(rate - mode.rate) < 1.5);
+        }
     };
 
     std::unordered_map<std::string, config::output> outputs;
@@ -182,13 +168,20 @@ class config
     {
         for (const display::output &output : outputs)
         {
+            if (!output.is_active)
+            {
+                continue;
+            }
             config::output cfg_output;
             cfg_output.edid_hex = output.edid.digest.hex();
             cfg_output.x = output.position.x;
             cfg_output.y = output.position.y;
-            cfg_output.width = output.modes[output.mode_index].width;
-            cfg_output.height = output.modes[output.mode_index].height;
-            cfg_output.rate = output.modes[output.mode_index].rate;
+            if (!output.modes.empty())
+            {
+                cfg_output.width = output.modes[output.mode_index].width;
+                cfg_output.height = output.modes[output.mode_index].height;
+                cfg_output.rate = output.modes[output.mode_index].rate;
+            }
             cfg_output.rotation = output.rotation;
             cfg_output.primary = output.is_primary;
             this->outputs[cfg_output.edid_hex] = cfg_output;
@@ -239,14 +232,12 @@ uint32_t find_mode_index(const std::vector<display::mode> &modes,
     for (size_t i = 0, size = modes.size(); i < size; ++i)
     {
         const display::mode &mode = modes[i];
-        if (mode.width == cfg_output.width &&
-            mode.height == cfg_output.height &&
-            (cfg_output.rate == 0 || mode.rate == cfg_output.rate))
+        if (cfg_output == mode)
         {
             return static_cast<uint32_t>(i);
         }
     }
-    std::cerr << "Warning: Target mode not found in mode list." << std::endl;
+    std::cerr << "Could not find the requested mode." << std::endl;
     return 0;
 }
 

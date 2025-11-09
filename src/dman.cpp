@@ -4,6 +4,23 @@
 #include <cmath>
 #include <iostream>
 #include <cassert>
+#include <cstring>
+
+static int x_error_handler(Display *dpy, XErrorEvent *ev)
+{
+    char buf[128];
+    XGetErrorText(dpy, ev->error_code, buf, sizeof(buf));
+    std::fprintf(stderr,
+                 "X error handler: error_code=%d (%s) request=%d minor=%d "
+                 "resource=0x%lx\n",
+                 ev->error_code,
+                 buf,
+                 ev->request_code,
+                 ev->minor_code,
+                 (unsigned long)ev->resourceid);
+    std::fflush(stderr);
+    std::abort(); // cause a crash so debugger/backtrace shows the exact call
+}
 
 namespace x11
 {
@@ -21,6 +38,7 @@ class session
         root = DefaultRootWindow(display);
         resources = XRRGetScreenResources(display, root);
         primary_output = XRRGetOutputPrimary(display, root);
+        XSetErrorHandler(x_error_handler);
     }
     ~session()
     {
@@ -89,14 +107,14 @@ XRRModeInfo *find_mode_info(XRRScreenResources *resources, RRMode mode_id)
 
 bool display::mode::operator==(const display::mode &other) const
 {
-    return (name == other.name) && (width == other.width) &&
-           (height == other.height) && std::fabs(rate - other.rate) < 0.01;
+    return (width == other.width) && (height == other.height) &&
+           std::fabs(rate - other.rate) < 1.5;
 }
 
 uint32_t get_mode_index(const std::vector<display::mode> &modes,
                         const display::mode &target_mode)
 {
-    for (size_t i = 0, size = modes.size(); i < size; ++i)
+    for (size_t i = 0, size = modes.size(); i < size; i++)
     {
         if (modes[i] == target_mode)
         {
@@ -109,7 +127,7 @@ uint32_t get_mode_index(const std::vector<display::mode> &modes,
 
 display::mode calc_mode_from_info(XRRModeInfo *info)
 {
-    display::mode result = {0};
+    display::mode result = {.name = info->name ? info->name : ""};
 
     result.width = info->width;
     result.height = info->height;
@@ -371,6 +389,30 @@ void ensure_one_display_is_active(x11::session &x11)
     }
 }
 
+display::vec2<uint32_t>
+get_total_screen_size(const std::vector<display::output> &outputs)
+{
+    uint32_t max_x = 0;
+    uint32_t max_y = 0;
+
+    for (const auto &output : outputs)
+    {
+        if (!output.is_active)
+            continue;
+
+        const display::mode &mode = output.modes[output.mode_index];
+        uint32_t right = output.position.x + mode.width;
+        uint32_t bottom = output.position.y + mode.height;
+
+        if (right > max_x)
+            max_x = right;
+        if (bottom > max_y)
+            max_y = bottom;
+    }
+
+    return {max_x, max_y};
+}
+
 void display::session::operator=(const std::vector<display::output> &outputs)
 {
     x11::session x11;
@@ -386,6 +428,9 @@ void display::session::operator=(const std::vector<display::output> &outputs)
 
         if (!target_output || !target_output->is_active)
         {
+            if (output_info->crtc == None)
+                continue;
+
             XRRSetCrtcConfig(x11.display,
                              x11.resources,
                              output_info->crtc,
@@ -398,6 +443,7 @@ void display::session::operator=(const std::vector<display::output> &outputs)
                              0);
             continue;
         }
+
         const display::mode &target_mode =
             target_output->modes[target_output->mode_index];
 
@@ -422,5 +468,25 @@ void display::session::operator=(const std::vector<display::output> &outputs)
         }
     }
 
+    static constexpr size_t pixels_per_milimeter = 3;
+    display::vec2<uint32_t> total_size = get_total_screen_size(outputs);
+
+    XRRSetScreenSize(x11.display,
+                     x11.root,
+                     total_size.x,
+                     total_size.y,
+                     total_size.x / pixels_per_milimeter,
+                     total_size.y / pixels_per_milimeter);
+
     ensure_one_display_is_active(x11);
+}
+
+display::edid::edid(const void *data, size_t size)
+{
+    if (size > 0)
+    {
+        raw.resize(size);
+        std::memcpy(raw.data(), data, size);
+        digest = digest::sha256(data, size);
+    }
 }
