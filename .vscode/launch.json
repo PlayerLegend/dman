@@ -1,0 +1,56 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // ...existing code...
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch dman --output -",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/dman",
+            "args": [
+                "--output",
+                "-"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+
+        {
+            "name": "(gdb) dman input",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/dman",
+            "args": [
+                "--input",
+                "/tmp/half"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}
