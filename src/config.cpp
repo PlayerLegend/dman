@@ -47,7 +47,9 @@ util::display::config::config(const std::string &config_text)
         if (args.empty())
             continue;
 
-        ::display::state &state = outputs[args[0]];
+        const std::string &edid = args[0];
+
+        ::display::state &state = outputs[edid];
 
         state.is_active = true;
 
@@ -86,7 +88,8 @@ util::display::config::config(const std::string &config_text)
             }
             else if (key == "name")
             {
-                state.mode.name = value;
+                name_to_edid[value] = edid;
+                edid_to_name[edid] = value;
             }
             else if (key == "rotation")
             {
