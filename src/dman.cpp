@@ -37,13 +37,20 @@ class session
         display = XOpenDisplay(nullptr);
         if (!display)
             throw std::runtime_error("Failed to open X display.");
-
+        int event_base, error_base;
+        if (!XRRQueryExtension(display, &event_base, &error_base))
+            throw std::runtime_error(
+                "X RandR extension not available on this display.");
+        int major, minor;
+        XRRQueryVersion(display, &major, &minor);
         primary_output = XRRGetOutputPrimary(display, default_root_window());
     }
     ~session()
     {
         XCloseDisplay(display);
     }
+    session(const session &) = delete;
+    session &operator=(const session &) = delete;
 
     Window default_root_window() const
     {
@@ -75,6 +82,8 @@ class screen_resources
     {
         return contents;
     }
+    screen_resources(const screen_resources &) = delete;
+    screen_resources &operator=(const screen_resources &) = delete;
 };
 
 class output_id
@@ -121,6 +130,8 @@ class output_info
     {
         return contents;
     }
+    output_info(const output_info &) = delete;
+    output_info &operator=(const output_info &) = delete;
 };
 
 class crtc_info
@@ -310,11 +321,11 @@ display::edid get_edid(x11::session &x11, RROutput output)
     return result;
 }
 
-uint32_t count_outputs(x11::session &x11)
-{
-    x11::screen_resources resources(x11);
-    return resources->noutput;
-}
+// uint32_t count_outputs(x11::session &x11)
+// {
+//     x11::screen_resources resources(x11);
+//     return resources->noutput;
+// }
 
 display::session::operator std::vector<display::output>()
 {
@@ -453,10 +464,8 @@ RRMode find_smallest_mode(x11::screen_resources &resources,
     return smallest_mode;
 }
 
-bool is_one_display_active(x11::session &x11)
+bool is_one_display_active(x11::session &x11, x11::screen_resources &resources)
 {
-    x11::screen_resources resources(x11);
-
     for (size_t i = 0; i < resources->noutput; ++i)
     {
         x11::output_id output_id(x11, resources, i);
@@ -467,16 +476,17 @@ bool is_one_display_active(x11::session &x11)
     return false;
 }
 
-void ensure_one_display_is_active(x11::session &x11)
+void ensure_one_display_is_active(x11::session &x11, x11::screen_resources &resources)
 {
-    if (is_one_display_active(x11))
+
+    if (is_one_display_active(x11, resources))
         return;
 
     std::cerr << "Warning: No active display found. Activating the first "
                  "connected display."
               << std::endl;
 
-    for (size_t i = 0, end = count_outputs(x11); i < end; i++)
+    for (size_t i = 0, end = resources->noutput; i < end; i++)
     {
         x11::screen_resources resources(x11);
         x11::output_id output_id(x11, resources, i);
@@ -527,15 +537,12 @@ get_total_screen_size(const std::vector<display::output> &outputs)
     return {max_x, max_y};
 }
 
-void display::session::operator=(const std::vector<display::output> &outputs)
+void set_display_config(const std::vector<display::output> &outputs, x11::session &x11, x11::screen_resources &resources)
 {
-    x11::session x11;
-
-    for (uint32_t output_index = 0, end = count_outputs(x11);
+    for (uint32_t output_index = 0, end = resources->noutput;
          output_index < end;
          output_index++)
     {
-        x11::screen_resources resources(x11);
         x11::output_id output_id(x11, resources, output_index);
         x11::output_info output_info(x11, resources, output_id);
 
@@ -591,14 +598,29 @@ void display::session::operator=(const std::vector<display::output> &outputs)
     static constexpr size_t pixels_per_milimeter = 3;
     display::vec2<uint32_t> total_size = get_total_screen_size(outputs);
 
-    XRRSetScreenSize(x11.display,
-                     x11.default_root_window(),
-                     total_size.x,
-                     total_size.y,
-                     total_size.x / pixels_per_milimeter,
-                     total_size.y / pixels_per_milimeter);
+    if (total_size.x > 0 && total_size.y > 0)
+    {
+        XRRSetScreenSize(x11.display,
+                         x11.default_root_window(),
+                         total_size.x,
+                         total_size.y,
+                         total_size.x / pixels_per_milimeter,
+                         total_size.y / pixels_per_milimeter);
+    }
+    else
+    {
+        std::cerr << "Warning: Total screen size is zero; not setting screen "
+                     "size."
+                  << std::endl;
+    }
+}
 
-    ensure_one_display_is_active(x11);
+void display::session::operator=(const std::vector<display::output> &outputs)
+{
+    x11::session x11;
+    x11::screen_resources resources(x11);
+    set_display_config(outputs, x11, resources);
+    ensure_one_display_is_active(x11, resources);
 }
 
 display::edid::edid(const void *begin, size_t size)
