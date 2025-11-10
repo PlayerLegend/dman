@@ -118,20 +118,33 @@ util::display::config::config(const std::vector<::display::output> &outputs)
     }
 }
 
+std::string util::display::config::get_edid(const std::string &id) const
+{
+    auto it = name_to_edid.find(id);
+    if (it != name_to_edid.end())
+    {
+        return it->second;
+    }
+    return id;
+}
+
+std::string util::display::config::get_name(const std::string &id) const
+{
+    auto it = edid_to_name.find(id);
+    if (it != edid_to_name.end())
+    {
+        return it->second;
+    }
+    return id;
+}
+
 const ::display::state &
 util::display::config::operator[](const std::string &name) const
 {
-    auto it_result = outputs.find(name);
-    if (it_result != outputs.end())
-        return it_result->second;
-
-    auto it_name = name_to_edid.find(name);
-    if (it_name != name_to_edid.end())
-    {
-        auto it_result2 = outputs.find(it_name->second);
-        if (it_result2 != outputs.end())
-            return it_result2->second;
-    }
+    std::string edid = get_edid(name);
+    auto it = outputs.find(edid);
+    if (it != outputs.end())
+        return it->second;
 
     static ::display::state empty_state;
     return empty_state;
@@ -178,4 +191,58 @@ util::display::config::operator std::string() const
         oss << "\n";
     }
     return oss.str();
+}
+
+void util::display::config::toggle_output(const std::string &name)
+{
+    if (name.empty())
+        return;
+    std::string edid = get_edid(name);
+    auto it = outputs.find(edid);
+    if (it == outputs.end())
+        return;
+    ::display::state &state = it->second;
+    state.is_active = !state.is_active;
+}
+
+void util::display::config::enable_output(const std::string &name)
+{
+    if (name.empty())
+        return;
+    std::string edid = get_edid(name);
+    auto it = outputs.find(edid);
+    if (it == outputs.end())
+        return;
+    ::display::state &state = it->second;
+    state.is_active = true;
+}
+
+void util::display::config::disable_output(const std::string &name)
+{
+    if (name.empty())
+        return;
+    std::string edid = get_edid(name);
+    auto it = outputs.find(edid);
+    if (it == outputs.end())
+        return;
+    ::display::state &state = it->second;
+    state.is_active = false;
+}
+
+void util::display::config::set_reference(const util::display::config &other)
+{
+    for (const auto &[edid, other_state] : other.outputs)
+    {
+        ::display::state &have_state = outputs[edid];
+        if (have_state.is_active)
+            continue;
+        have_state = other_state;
+        have_state.is_active = false;
+    }
+
+    for (const auto &[name, edid] : other.name_to_edid)
+    {
+        name_to_edid[name] = edid;
+        edid_to_name[edid] = name;
+    }
 }

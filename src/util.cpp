@@ -5,17 +5,12 @@
 #include <sstream>
 #include <cmath>
 #include "config.hpp"
+#include <dman/help.hpp>
 
 void print_usage(const char *prog_name)
 {
-    std::cout << "Usage: " << prog_name << " [options]\n"
-              << "Options:\n"
-              << "  -h, --help            Show this help message and exit\n"
-              << "  -i, --input FILE      Input configuration file\n"
-              << "  -o, --output FILE     Output configuration file\n"
-              << "  -t, --toggle NAME    Toggle output by name\n"
-              << "  -e, --enable NAME    Enable output by name\n"
-              << "  -d, --disable NAME   Disable output by name\n";
+    std::cout << "Usage: " << prog_name << " [options]\n";
+
 }
 
 std::string read_stdin()
@@ -39,8 +34,7 @@ std::string read_file(const std::string &file_path)
     return ss.str();
 }
 
-void write_file(const std::string &file_path,
-                    const std::string &content)
+void write_file(const std::string &file_path, const std::string &content)
 {
     if (file_path == "-")
     {
@@ -53,15 +47,36 @@ void write_file(const std::string &file_path,
     file_stream << content;
 }
 
+std::string read_stdin_line()
+{
+    std::string line;
+    std::getline(std::cin, line);
+    return line;
+}
+
+std::string get_argument_name(std::string arg)
+{
+    if (arg == "-")
+        return read_stdin_line();
+    return arg;
+}
+
 int main(int argc, char *argv[])
 {
+    if (argc < 2)
+    {
+        print_usage(argv[0]);
+        return 0;
+    }
+
     static struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
         {"input", required_argument, 0, 'i'},
         {"output", required_argument, 0, 'o'},
-        {"toggle", required_argument, 0, 0},
-        {"enable", required_argument, 0, 0},
-        {"disable", required_argument, 0, 0},
+        {"toggle", required_argument, 0, 't'},
+        {"enable", required_argument, 0, 'e'},
+        {"disable", required_argument, 0, 'd'},
+        {"list-outputs", no_argument, 0, 'l'},
         {0, 0, 0, 0},
     };
 
@@ -70,6 +85,7 @@ int main(int argc, char *argv[])
     std::vector<std::string> toggle_outputs;
     std::vector<std::string> enable_outputs;
     std::vector<std::string> disable_outputs;
+    bool list_outputs = false;
     int option_index = 0;
     int c;
     while (
@@ -87,10 +103,72 @@ int main(int argc, char *argv[])
         case 'o':
             output_file = optarg;
             break;
+        case 't':
+            toggle_outputs.push_back(get_argument_name(optarg));
+            break;
+        case 'e':
+            enable_outputs.push_back(get_argument_name(optarg));
+            break;
+        case 'd':
+            disable_outputs.push_back(get_argument_name(optarg));
+            break;
+        case 'l':
+            list_outputs = true;
+            break;
         default:
             print_usage(argv[0]);
             return 1;
         }
+    }
+
+    if (!toggle_outputs.empty() || !enable_outputs.empty() ||
+        !disable_outputs.empty())
+    {
+        if (input_file.empty())
+        {
+            throw std::runtime_error(
+                "Input file must be specified when toggling/enabling/disabling "
+                "outputs.");
+        }
+
+        util::display::config cfg_input(read_file(input_file));
+        util::display::config cfg_current(display::get_outputs());
+        cfg_current.set_reference(cfg_input);
+
+        for (const auto &name : toggle_outputs)
+        {
+            cfg_current.toggle_output(name);
+        }
+        for (const auto &name : enable_outputs)
+        {
+            cfg_current.enable_output(name);
+        }
+        for (const auto &name : disable_outputs)
+        {
+            cfg_current.disable_output(name);
+        }
+
+        std::cerr << (std::string)cfg_current;
+
+        display::set_outputs(cfg_current);
+
+        return 0;
+    }
+
+    if (list_outputs)
+    {
+        util::display::config cfg_current(display::get_outputs());
+        if (!input_file.empty())
+        {
+            util::display::config cfg_input(read_file(input_file));
+            cfg_current.set_reference(cfg_input);
+        }
+
+        for (const auto &[edid, state] : cfg_current.outputs)
+        {
+            std::cout << cfg_current.get_name(edid) << "\n";
+        }
+        return 0;
     }
 
     if (!input_file.empty())
