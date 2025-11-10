@@ -1,6 +1,7 @@
 #include "digest.hpp"
 
 #include <gcrypt.h>
+#include <stdexcept>
 
 digest::sha256::sha256(const void *begin, size_t size)
 {
@@ -35,4 +36,30 @@ bool digest::sha256::operator==(const digest::sha256 &other) const
 bool digest::sha256::operator==(const std::string &hex_str) const
 {
     return hex() == hex_str;
+}
+
+uint8_t hex_char_to_value(char c)
+{
+    c = tolower(c);
+
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
+
+    throw std::invalid_argument("Invalid hex character");
+}
+
+void digest::sha256::operator=(const std::string &hex_str)
+{
+    if (hex_str.length() != 64)
+    {
+        throw std::invalid_argument("Invalid hex string length for sha256");
+    }
+    for (size_t i = 0; i < 32; ++i)
+    {
+        char high = tolower(hex_str[i * 2]);
+        char low = tolower(hex_str[i * 2 + 1]);
+        content[i] = hex_char_to_value(low) + hex_char_to_value(high) * 16;
+    }
 }

@@ -15,6 +15,10 @@ struct edid
 {
     digest::sha256 digest;
     std::vector<uint8_t> raw;
+    std::string manufacturer_id;
+    std::string manufacturer_product_code;
+    std::string serial_number;
+    std::string name;
     edid() {};
     edid(const void *data, size_t size);
 };
@@ -33,6 +37,13 @@ template <typename T> class vec2
     T y;
 };
 
+struct state {
+    struct mode mode;
+    vec2<unsigned int> position;
+    enum rotation rotation;
+    bool is_primary;
+    bool is_active;
+};
 class output
 {
   public:
@@ -44,10 +55,12 @@ class output
     bool is_active = false;
     enum rotation rotation;
     class edid edid;
+    void operator=(const mode &mode);
+    void operator=(const state &state);
+    operator state() const;
 };
 class session
 {
-
   public:
     session() {};
     operator std::vector<output>();
