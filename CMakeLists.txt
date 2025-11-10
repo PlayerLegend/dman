@@ -38,6 +38,7 @@ target_compile_features(display_manager_lib PUBLIC cxx_std_17)
 target_sources(display_manager_lib PRIVATE
     src/digest.cpp
     src/dman.cpp
+    src/config.cpp
 )
 
 add_executable(dman src/util.cpp)

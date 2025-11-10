@@ -49,7 +49,7 @@ util::display::config::config(const std::string &config_text)
 
         ::display::state &state = outputs[args[0]];
 
-        // ::display::mode &want_mode = output.modes.emplace_back();
+        state.is_active = true;
 
         for (int i = 1; i < args.size(); ++i)
         {
@@ -107,49 +107,51 @@ util::display::config::config(const std::vector<::display::output> &outputs)
 {
     for (const ::display::output &output : outputs)
     {
-        this->outputs[output.edid.digest.hex()] = output;
+        std::string hex = output.edid.digest.hex();
+        this->name_to_edid[output.edid.name] = hex;
+        this->edid_to_name[hex] = output.edid.name;
+        if (output.is_active)
+            this->outputs[hex] = output;
     }
-}
-
-std::string
-util::display::config::name_to_edid_lookup(const std::string &name) const
-{
-    auto it = name_to_edid.find(name);
-    if (it != name_to_edid.end())
-    {
-        return it->second;
-    }
-    return name;
 }
 
 const ::display::state &
 util::display::config::operator[](const std::string &name) const
 {
-    std::string edid = name_to_edid_lookup(name);
-    auto it = outputs.find(edid);
-    if (it == outputs.end())
+    auto it_result = outputs.find(name);
+    if (it_result != outputs.end())
+        return it_result->second;
+
+    auto it_name = name_to_edid.find(name);
+    if (it_name != name_to_edid.end())
     {
-        static ::display::state empty_state;
-        return empty_state;
+        auto it_result2 = outputs.find(it_name->second);
+        if (it_result2 != outputs.end())
+            return it_result2->second;
     }
-    return it->second;
+
+    static ::display::state empty_state;
+    return empty_state;
 }
 util::display::config::operator std::string() const
 {
     std::ostringstream oss;
-    for (const auto &[name, state] : outputs)
+    for (const auto &[edid, state] : outputs)
     {
         if (!state.is_active)
             continue;
 
-        oss << name_to_edid_lookup(name);
+        oss << edid;
         oss << " x=" << state.position.x;
         oss << " y=" << state.position.y;
 
         oss << " width=" << state.mode.width;
         oss << " height=" << state.mode.height;
         oss << " rate=" << state.mode.rate;
-        oss << " name=" << name;
+
+        const auto it = edid_to_name.find(edid);
+        if (it != edid_to_name.end())
+            oss << " name=" << it->second;
         oss << " rotation=";
         switch (state.rotation)
         {

@@ -96,17 +96,12 @@ int main(int argc, char *argv[])
     if (!input_file.empty())
     {
         util::display::config cfg(read_file(input_file));
-        display::session sess;
-        std::vector<display::output> outputs = sess;
-        for (display::output &output : outputs)
-            output = cfg[output.edid.digest.hex()];
-        sess = outputs;
+        display::set_outputs(cfg);
     }
 
     if (!output_file.empty())
     {
-        display::session sess;
-        std::vector<display::output> outputs = sess;
+        std::vector<display::output> outputs = display::get_outputs();
         util::display::config cfg(outputs);
         write_file(output_file, (std::string)cfg);
     }

@@ -16,8 +16,7 @@ struct config
 {
     std::unordered_map<std::string, ::display::state> outputs;
     std::unordered_map<std::string, std::string> name_to_edid;
-
-    std::string name_to_edid_lookup(const std::string &name) const;
+    std::unordered_map<std::string, std::string> edid_to_name;
 
   public:
     config(const std::vector<::display::output> &outputs);

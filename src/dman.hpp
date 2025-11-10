@@ -1,5 +1,6 @@
 #include "digest.hpp"
 #include <vector>
+#include <unordered_map>
 
 namespace display
 {
@@ -11,6 +12,12 @@ struct mode
     double rate;
     bool operator==(const mode &other) const;
 };
+
+namespace util::display
+{
+struct config;
+}
+
 struct edid
 {
     digest::sha256 digest;
@@ -37,7 +44,8 @@ template <typename T> class vec2
     T y;
 };
 
-struct state {
+struct state
+{
     struct mode mode;
     vec2<unsigned int> position;
     enum rotation rotation;
@@ -59,12 +67,17 @@ class output
     void operator=(const state &state);
     operator state() const;
 };
-class session
-{
-  public:
-    session() {};
-    operator std::vector<output>();
-    void operator=(const std::vector<output> &outputs);
-};
+
+std::vector<output> get_outputs();
+void set_outputs(const std::unordered_map<std::string, display::state> &);
+
+// class session
+// {
+//   public:
+//     session() {};
+//     operator std::vector<output>();
+//     void operator=(const std::unordered_map<std::string, state> &);
+//     void operator=(const util::display::config &);
+// };
 
 } // namespace display
