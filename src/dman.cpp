@@ -24,26 +24,75 @@ static int x_error_handler(Display *dpy, XErrorEvent *ev)
 
 namespace x11
 {
+
 class session
 {
   public:
     Display *display;
-    Window root;
-    XRRScreenResources *resources;
     RROutput primary_output;
 
     session()
     {
-        display = XOpenDisplay(nullptr);
-        root = DefaultRootWindow(display);
-        resources = XRRGetScreenResources(display, root);
-        primary_output = XRRGetOutputPrimary(display, root);
         XSetErrorHandler(x_error_handler);
+        display = XOpenDisplay(nullptr);
+        if (!display)
+            throw std::runtime_error("Failed to open X display.");
+
+        primary_output = XRRGetOutputPrimary(display, default_root_window());
     }
     ~session()
     {
-        XRRFreeScreenResources(resources);
         XCloseDisplay(display);
+    }
+
+    Window default_root_window() const
+    {
+        return XDefaultRootWindow(display);
+    }
+};
+
+class screen_resources
+{
+    XRRScreenResources *contents;
+
+  public:
+    screen_resources(session &sess)
+    {
+        contents =
+            XRRGetScreenResources(sess.display, sess.default_root_window());
+        if (!contents)
+            throw std::runtime_error("Failed to get XRR screen resources.");
+    }
+    ~screen_resources()
+    {
+        XRRFreeScreenResources(contents);
+    }
+    XRRScreenResources *operator->() const
+    {
+        return contents;
+    }
+    operator XRRScreenResources *() const
+    {
+        return contents;
+    }
+};
+
+class output_id
+{
+    RROutput contents;
+
+  public:
+    output_id(session &sess, screen_resources &resources, uint32_t output_index)
+    {
+        if (output_index >= resources->noutput)
+            throw std::out_of_range("Output index out of range.");
+        contents = resources->outputs[output_index];
+        if (contents == None)
+            throw std::runtime_error("Output is None.");
+    }
+    operator RROutput() const
+    {
+        return contents;
     }
 };
 
@@ -52,11 +101,17 @@ class output_info
     XRROutputInfo *contents;
 
   public:
-    output_info(session &sess, uint32_t output_index)
+    output_info(session &sess,
+                screen_resources &resources,
+                const output_id &output)
     {
-        contents = XRRGetOutputInfo(sess.display,
-                                    sess.resources,
-                                    sess.resources->outputs[output_index]);
+        if ((RROutput)output == None)
+            throw std::runtime_error("Output is None.");
+
+        contents = XRRGetOutputInfo(sess.display, resources, output);
+
+        if (!contents)
+            throw std::runtime_error("Failed to get XRR output info.");
     }
     ~output_info()
     {
@@ -73,9 +128,9 @@ class crtc_info
     XRRCrtcInfo *contents;
 
   public:
-    crtc_info(session &sess, RRCrtc crtc)
+    crtc_info(session &sess, screen_resources &resources, RRCrtc crtc)
     {
-        contents = XRRGetCrtcInfo(sess.display, sess.resources, crtc);
+        contents = XRRGetCrtcInfo(sess.display, resources, crtc);
     }
     ~crtc_info()
     {
@@ -121,8 +176,7 @@ uint32_t get_mode_index(const std::vector<display::mode> &modes,
             return static_cast<uint32_t>(i);
         }
     }
-    std::cerr << "Warning: Target mode not found in mode list." << std::endl;
-    return 0;
+    throw std::runtime_error("Target mode not found in mode list.");
 }
 
 display::mode calc_mode_from_info(XRRModeInfo *info)
@@ -138,9 +192,10 @@ display::mode calc_mode_from_info(XRRModeInfo *info)
 
 bool set_crtc_info(display::output &output,
                    x11::session &x11,
+                   x11::screen_resources &resources,
                    x11::output_info &output_info)
 {
-    x11::crtc_info crtc_info(x11, output_info->crtc);
+    x11::crtc_info crtc_info(x11, resources, output_info->crtc);
     if (!crtc_info)
     {
         std::cerr << "Warning: CRTC info not found for output "
@@ -148,7 +203,7 @@ bool set_crtc_info(display::output &output,
         return false;
     }
     output.is_active = (crtc_info->mode != None);
-    XRRModeInfo *mode_info = find_mode_info(x11.resources, crtc_info->mode);
+    XRRModeInfo *mode_info = find_mode_info(resources, crtc_info->mode);
     if (!mode_info)
     {
         std::cerr << "Warning: Mode ID " << crtc_info->mode
@@ -183,8 +238,6 @@ bool set_crtc_info(display::output &output,
     return true;
 }
 
-constexpr size_t EDID_v1_4_SIZE = 128;
-
 display::edid get_edid(x11::session &x11, RROutput output)
 {
     Atom edid_atom = XInternAtom(x11.display, "EDID", True);
@@ -198,11 +251,36 @@ display::edid get_edid(x11::session &x11, RROutput output)
     unsigned long nitems;
     unsigned long bytes_after;
     unsigned char *edid;
+
     if (Success != XRRGetOutputProperty(x11.display,
                                         output,
                                         edid_atom,
                                         0,
-                                        EDID_v1_4_SIZE,
+                                        0,
+                                        false,
+                                        false,
+                                        AnyPropertyType,
+                                        &actual_type,
+                                        &actual_format,
+                                        &nitems,
+                                        &bytes_after,
+                                        &edid))
+    {
+        std::cerr << "Warning: Failed to get EDID size." << std::endl;
+        return {};
+    }
+
+    assert(edid);
+    XFree(edid);
+
+    assert(bytes_after % (actual_format / 8) == 0);
+    nitems = bytes_after / (actual_format / 8);
+
+    if (Success != XRRGetOutputProperty(x11.display,
+                                        output,
+                                        edid_atom,
+                                        0,
+                                        nitems,
                                         false,
                                         false,
                                         AnyPropertyType,
@@ -215,11 +293,27 @@ display::edid get_edid(x11::session &x11, RROutput output)
         std::cerr << "Warning: Failed to get EDID property." << std::endl;
         return {};
     }
-    display::edid result((void *)edid, EDID_v1_4_SIZE);
+
+    int edid_length = nitems * (actual_format / 8);
+
+    display::edid result((void *)edid, edid_length);
 
     XFree(edid);
 
+    if (result.raw.size() < 128)
+    {
+        std::cerr << "Warning: EDID data too small (" << result.raw.size()
+                  << " bytes)." << std::endl;
+        return {};
+    }
+
     return result;
+}
+
+uint32_t count_outputs(x11::session &x11)
+{
+    x11::screen_resources resources(x11);
+    return resources->noutput;
 }
 
 display::session::operator std::vector<display::output>()
@@ -227,14 +321,17 @@ display::session::operator std::vector<display::output>()
     std::vector<display::output> result;
 
     x11::session x11;
+    x11::screen_resources resources(x11);
 
-    for (uint32_t output_index = 0; output_index < x11.resources->noutput;
-         ++output_index)
+    for (uint32_t output_index = 0; output_index < resources->noutput;
+         output_index++)
     {
+
         display::output &output = result.emplace_back();
         output.is_primary =
-            (x11.resources->outputs[output_index] == x11.primary_output);
-        x11::output_info output_info(x11, output_index);
+            (resources->outputs[output_index] == x11.primary_output);
+        x11::output_id output_id(x11, resources, output_index);
+        x11::output_info output_info(x11, resources, output_id);
         output.name = output_info->name;
         if (output_info->connection != RR_Connected)
             continue;
@@ -242,7 +339,7 @@ display::session::operator std::vector<display::output>()
         for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
         {
             XRRModeInfo *mode_info =
-                find_mode_info(x11.resources, output_info->modes[mode_index]);
+                find_mode_info(resources, output_info->modes[mode_index]);
             if (!mode_info)
             {
                 std::cerr << "Warning: Mode ID "
@@ -256,13 +353,13 @@ display::session::operator std::vector<display::output>()
 
         if (output_info->crtc)
         {
-            if (!set_crtc_info(output, x11, output_info))
+            if (!set_crtc_info(output, x11, resources, output_info))
             {
                 std::cerr << "Warning: Failed to set CRTC info for output "
                           << output_info->name << std::endl;
             }
         }
-        output.edid = get_edid(x11, x11.resources->outputs[output_index]);
+        output.edid = get_edid(x11, resources->outputs[output_index]);
     }
 
     return result;
@@ -282,11 +379,13 @@ find_output_by_name(const std::vector<display::output> &outputs,
     return nullptr;
 }
 
-RRMode find_mode_id_by_info(x11::session &x11, const display::mode &target_mode)
+RRMode find_mode_id_by_info(x11::session &x11,
+                            x11::screen_resources &resources,
+                            const display::mode &target_mode)
 {
-    for (int i = 0; i < x11.resources->nmode; ++i)
+    for (int i = 0; i < resources->nmode; ++i)
     {
-        XRRModeInfo *mode_info = &x11.resources->modes[i];
+        XRRModeInfo *mode_info = &resources->modes[i];
         display::mode mode = calc_mode_from_info(mode_info);
         if (mode == target_mode)
         {
@@ -313,23 +412,24 @@ Rotation rotation_to_x11_rotation(display::rotation rotation)
     }
 }
 
-RRCrtc find_unused_crtc(x11::session &x11)
+RRCrtc find_unused_crtc(x11::session &x11, x11::screen_resources &resources)
 {
-    for (int i = 0; i < x11.resources->ncrtc; ++i)
+    for (int i = 0; i < resources->ncrtc; ++i)
     {
         XRRCrtcInfo *crtc_info =
-            XRRGetCrtcInfo(x11.display, x11.resources, x11.resources->crtcs[i]);
+            XRRGetCrtcInfo(x11.display, resources, resources->crtcs[i]);
         if (crtc_info && crtc_info->mode == None)
         {
             XRRFreeCrtcInfo(crtc_info);
-            return x11.resources->crtcs[i];
+            return resources->crtcs[i];
         }
         XRRFreeCrtcInfo(crtc_info);
     }
     throw std::runtime_error("No unused CRTC found.");
 }
 
-RRMode find_smallest_mode(x11::session &x11, x11::output_info &output_info)
+RRMode find_smallest_mode(x11::screen_resources &resources,
+                          x11::output_info &output_info)
 {
     RRMode smallest_mode = None;
     double smallest_volume = INFINITY;
@@ -337,7 +437,7 @@ RRMode find_smallest_mode(x11::session &x11, x11::output_info &output_info)
     for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
     {
         XRRModeInfo *mode_info =
-            find_mode_info(x11.resources, output_info->modes[mode_index]);
+            find_mode_info(resources, output_info->modes[mode_index]);
         if (!mode_info)
         {
             continue;
@@ -353,29 +453,43 @@ RRMode find_smallest_mode(x11::session &x11, x11::output_info &output_info)
     return smallest_mode;
 }
 
+bool is_one_display_active(x11::session &x11)
+{
+    x11::screen_resources resources(x11);
+
+    for (size_t i = 0; i < resources->noutput; ++i)
+    {
+        x11::output_id output_id(x11, resources, i);
+        x11::output_info output_info(x11, resources, output_id);
+        if (output_info->crtc != None)
+            return true;
+    }
+    return false;
+}
+
 void ensure_one_display_is_active(x11::session &x11)
 {
-    for (size_t i = 0; i < x11.resources->noutput; ++i)
-    {
-        x11::output_info output_info(x11, i);
-        if (output_info->crtc != None)
-            return;
-    }
+    if (is_one_display_active(x11))
+        return;
 
     std::cerr << "Warning: No active display found. Activating the first "
                  "connected display."
               << std::endl;
 
-    for (size_t i = 0; i < x11.resources->noutput; ++i)
+    for (size_t i = 0, end = count_outputs(x11); i < end; i++)
     {
-        x11::output_info output_info(x11, i);
+        x11::screen_resources resources(x11);
+        x11::output_id output_id(x11, resources, i);
+        x11::output_info output_info(x11, resources, output_id);
         if (output_info->connection == RR_Connected && output_info->nmode > 0)
         {
-            RRMode mode_id = find_smallest_mode(x11, output_info);
-            RRCrtc crtc = find_unused_crtc(x11);
-            RROutput output_id = x11.resources->outputs[i];
+            RRMode mode_id = find_smallest_mode(resources, output_info);
+            RRCrtc crtc = find_unused_crtc(x11, resources);
+            if (i >= resources->noutput)
+                throw std::out_of_range("Output index out of range.");
+            RROutput output_id = resources->outputs[i];
             XRRSetCrtcConfig(x11.display,
-                             x11.resources,
+                             resources,
                              crtc,
                              CurrentTime,
                              0,
@@ -417,11 +531,13 @@ void display::session::operator=(const std::vector<display::output> &outputs)
 {
     x11::session x11;
 
-    for (uint32_t output_index = 0; output_index < x11.resources->noutput;
-         ++output_index)
+    for (uint32_t output_index = 0, end = count_outputs(x11);
+         output_index < end;
+         output_index++)
     {
-        x11::output_info output_info(x11, output_index);
-        RROutput output_id = x11.resources->outputs[output_index];
+        x11::screen_resources resources(x11);
+        x11::output_id output_id(x11, resources, output_index);
+        x11::output_info output_info(x11, resources, output_id);
 
         const display::output *target_output =
             find_output_by_name(outputs, output_info->name);
@@ -432,7 +548,7 @@ void display::session::operator=(const std::vector<display::output> &outputs)
                 continue;
 
             XRRSetCrtcConfig(x11.display,
-                             x11.resources,
+                             resources,
                              output_info->crtc,
                              CurrentTime,
                              0,
@@ -447,24 +563,28 @@ void display::session::operator=(const std::vector<display::output> &outputs)
         const display::mode &target_mode =
             target_output->modes[target_output->mode_index];
 
-        RRMode mode_id = find_mode_id_by_info(x11, target_mode);
+        RRMode mode_id = find_mode_id_by_info(x11, resources, target_mode);
         Rotation rotation = rotation_to_x11_rotation(target_output->rotation);
-        RRCrtc crtc =
-            output_info->crtc ? output_info->crtc : find_unused_crtc(x11);
+        RRCrtc crtc = output_info->crtc ? output_info->crtc
+                                        : find_unused_crtc(x11, resources);
+
+        RROutput id_copy = (RROutput)output_id;
         XRRSetCrtcConfig(x11.display,
-                         x11.resources,
+                         (XRRScreenResources *)resources,
                          crtc,
                          CurrentTime,
                          target_output->position.x,
                          target_output->position.y,
                          mode_id,
                          rotation,
-                         &output_id,
+                         &id_copy,
                          1);
 
         if (target_output->is_primary)
         {
-            XRRSetOutputPrimary(x11.display, x11.root, output_id);
+            XRRSetOutputPrimary(x11.display,
+                                x11.default_root_window(),
+                                output_id);
         }
     }
 
@@ -472,7 +592,7 @@ void display::session::operator=(const std::vector<display::output> &outputs)
     display::vec2<uint32_t> total_size = get_total_screen_size(outputs);
 
     XRRSetScreenSize(x11.display,
-                     x11.root,
+                     x11.default_root_window(),
                      total_size.x,
                      total_size.y,
                      total_size.x / pixels_per_milimeter,
@@ -481,12 +601,80 @@ void display::session::operator=(const std::vector<display::output> &outputs)
     ensure_one_display_is_active(x11);
 }
 
-display::edid::edid(const void *data, size_t size)
+display::edid::edid(const void *begin, size_t size)
 {
     if (size > 0)
     {
         raw.resize(size);
-        std::memcpy(raw.data(), data, size);
-        digest = digest::sha256(data, size);
+        std::memcpy(raw.data(), begin, size);
+        digest = digest::sha256(begin, size);
     }
+
+    uint16_t manufacturer_id_raw_little_endian =
+        (static_cast<uint16_t>(raw[8]) << 8) | raw[9];
+
+    uint8_t manufacturer_id_five_bit_offsets[3] = {
+        static_cast<uint8_t>((manufacturer_id_raw_little_endian >> 10) & 0x1F),
+        static_cast<uint8_t>((manufacturer_id_raw_little_endian >> 5) & 0x1F),
+        static_cast<uint8_t>(manufacturer_id_raw_little_endian & 0x1F),
+    };
+
+    manufacturer_id = std::string({
+        static_cast<char>(manufacturer_id_five_bit_offsets[0] + 'A' - 1),
+        static_cast<char>(manufacturer_id_five_bit_offsets[1] + 'A' - 1),
+        static_cast<char>(manufacturer_id_five_bit_offsets[2] + 'A' - 1),
+    });
+
+    uint16_t manufacturer_product_code_i = *(uint16_t *)&raw[10];
+
+    char manufacturer_product_code_hex[5];
+    std::snprintf(manufacturer_product_code_hex,
+                  sizeof(manufacturer_product_code_hex),
+                  "%04X",
+                  manufacturer_product_code_i);
+
+    manufacturer_product_code = std::string(manufacturer_product_code_hex);
+
+    uint32_t serial_number_i = *(uint32_t *)&raw[12];
+
+    char serial_number_hex[9];
+    std::snprintf(serial_number_hex,
+                  sizeof(serial_number_hex),
+                  "%08X",
+                  serial_number_i);
+
+    serial_number = std::string(serial_number_hex);
+
+    name =
+        manufacturer_id + "-" + manufacturer_product_code + "-" + serial_number;
+}
+
+void display::output::operator=(const mode &mode)
+{
+    mode_index = get_mode_index(modes, mode);
+}
+
+display::output::operator display::state() const
+{
+    return display::state{
+        .mode = modes[mode_index],
+        .position = position,
+        .rotation = rotation,
+        .is_primary = is_primary,
+        .is_active = is_active,
+    };
+}
+
+void display::output::operator=(const state &state)
+{
+    is_active = state.is_active;
+
+    if (!is_active)
+        return;
+
+    if (!modes.empty())
+        *this = state.mode;
+    position = state.position;
+    rotation = state.rotation;
+    is_primary = state.is_primary;
 }
