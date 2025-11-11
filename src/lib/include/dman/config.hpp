@@ -18,6 +18,7 @@ struct config
     std::unordered_map<std::string, ::display::state> outputs;
     std::unordered_map<std::string, std::string> name_to_edid;
     std::unordered_map<std::string, std::string> edid_to_name;
+    void associate_name_edid(const std::string &name, const std::string &edid);
 
   public:
     std::string get_edid(const std::string &id) const;

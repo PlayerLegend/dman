@@ -88,8 +88,7 @@ util::display::config::config(const std::string &config_text)
             }
             else if (key == "name")
             {
-                name_to_edid[value] = edid;
-                edid_to_name[edid] = value;
+                associate_name_edid(value, edid);
             }
             else if (key == "rotation")
             {
@@ -106,15 +105,23 @@ util::display::config::config(const std::string &config_text)
     }
 }
 
+void util::display::config::associate_name_edid(const std::string &name,
+                                                const std::string &edid)
+{
+    name_to_edid[name] = edid;
+    edid_to_name[edid] = name;
+}
+
 util::display::config::config(const std::vector<::display::output> &outputs)
 {
     for (const ::display::output &output : outputs)
     {
         std::string hex = output.edid.digest.hex();
-        this->name_to_edid[output.edid.name] = hex;
-        this->edid_to_name[hex] = output.edid.name;
         if (output.is_active)
+        {
+            associate_name_edid(output.edid.name, hex);
             this->outputs[hex] = output;
+        }
     }
 }
 
@@ -166,8 +173,12 @@ util::display::config::operator std::string() const
         oss << " rate=" << state.mode.rate;
 
         const auto it = edid_to_name.find(edid);
+
         if (it != edid_to_name.end())
-            oss << " name=" << it->second;
+        {
+            const std::string &name = it->second;
+            oss << " name=" << name;
+        }
         oss << " rotation=";
         switch (state.rotation)
         {
@@ -242,7 +253,6 @@ void util::display::config::set_reference(const util::display::config &other)
 
     for (const auto &[name, edid] : other.name_to_edid)
     {
-        name_to_edid[name] = edid;
-        edid_to_name[edid] = name;
+        associate_name_edid(name, edid);
     }
 }
