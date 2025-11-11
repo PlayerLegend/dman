@@ -21,7 +21,7 @@ provide names derived from the monitor's EDID.
 dman --output /some/file
 
 # Restore a previous display configuration
-dman --input /some/file     # Restores a previous display configuration
+dman --input /some/file
 
 # Toggles a monitor named 'Secondary' in the configuration file
 dman --input /some/file --toggle Secondary
