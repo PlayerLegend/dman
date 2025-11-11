@@ -25,3 +25,4 @@ add_dependencies(dman generate_help_txt)
 target_include_directories(dman PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_link_libraries(dman PRIVATE display_manager_lib)
+install(TARGETS dman RUNTIME DESTINATION bin)
