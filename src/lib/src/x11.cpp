@@ -269,4 +269,71 @@ bool x_device::set_matrix_prop(const float matrix[3][3])
 
     return true;
 }
+
+RRCrtc find_unused_crtc(x11::session &x11, x11::screen_resources &resources)
+{
+    for (int i = 0; i < resources->ncrtc; ++i)
+    {
+        XRRCrtcInfo *crtc_info =
+            XRRGetCrtcInfo(x11.display, resources, resources->crtcs[i]);
+        if (crtc_info && crtc_info->mode == None)
+        {
+            XRRFreeCrtcInfo(crtc_info);
+            return resources->crtcs[i];
+        }
+        XRRFreeCrtcInfo(crtc_info);
+    }
+    throw std::runtime_error("No unused CRTC found.");
+}
+
+crtc::crtc(session &_sess, screen_resources &_resources, RRCrtc crtc)
+    : sess(_sess), resources(_resources),
+      contents(crtc ? crtc : find_unused_crtc(sess, resources))
+{
+}
+
+crtc::crtc(session &_sess, screen_resources &_resources)
+    : sess(_sess), resources(_resources),
+      contents(find_unused_crtc(sess, resources))
+{
+}
+
+crtc::operator RRCrtc() const
+{
+    return contents;
+}
+
+void crtc::set_config(int x,
+                      int y,
+                      RRMode mode,
+                      Rotation rotation,
+                      unsigned int output_index,
+                      int noutputs)
+{
+    XRRSetCrtcConfig(sess.display,
+                     resources,
+                     contents,
+                     CurrentTime,
+                     x,
+                     y,
+                     mode,
+                     rotation,
+                     &resources->outputs[output_index],
+                     noutputs);
+}
+
+void crtc::clear()
+{
+    XRRSetCrtcConfig(sess.display,
+                     resources,
+                     contents,
+                     CurrentTime,
+                     0,
+                     0,
+                     None,
+                     RR_Rotate_0,
+                     nullptr,
+                     0);
+}
+
 } // namespace x11

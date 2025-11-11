@@ -31,7 +31,7 @@
             "name": "(gdb) dman input",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/dman",
+            "program": "${workspaceFolder}/build/src/util/dman",
             "args": [
                 "--input",
                 "/tmp/half"

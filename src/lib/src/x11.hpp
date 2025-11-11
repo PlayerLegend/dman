@@ -46,7 +46,9 @@ class output_id
     RROutput contents;
 
   public:
-    output_id(session &sess, screen_resources &resources, uint32_t output_index);
+    output_id(session &sess,
+              screen_resources &resources,
+              uint32_t output_index);
     operator RROutput() const;
 };
 
@@ -55,7 +57,9 @@ class output_info
     XRROutputInfo *contents;
 
   public:
-    output_info(session &sess, screen_resources &resources, const output_id &output);
+    output_info(session &sess,
+                screen_resources &resources,
+                const output_id &output);
     ~output_info();
 
     XRROutputInfo *operator->() const;
@@ -114,6 +118,26 @@ class x_device
     XDevice *operator->() const;
 
     bool set_matrix_prop(const float matrix[3][3]);
+};
+
+class crtc
+{
+    session &sess;
+    screen_resources &resources;
+    RRCrtc contents;
+
+  public:
+    crtc(session &sess, screen_resources &resources, RRCrtc crtc);
+    crtc(session &sess, screen_resources &resources);
+    operator RRCrtc() const;
+    void set_config(
+                    int x,
+                    int y,
+                    RRMode mode,
+                    Rotation rotation,
+                    unsigned int output_index,
+                    int noutputs);
+    void clear();
 };
 
 } // namespace x11

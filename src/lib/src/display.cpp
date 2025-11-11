@@ -189,12 +189,6 @@ display::edid get_edid(x11::session &x11, RROutput output)
     return result;
 }
 
-// uint32_t count_outputs(x11::session &x11)
-// {
-//     x11::screen_resources resources(x11);
-//     return resources->noutput;
-// }
-
 display::output init_output(x11::session &x11,
                             x11::screen_resources &resources,
                             uint32_t output_index)
@@ -298,22 +292,6 @@ Rotation rotation_to_x11_rotation(display::rotation rotation)
     }
 }
 
-RRCrtc find_unused_crtc(x11::session &x11, x11::screen_resources &resources)
-{
-    for (int i = 0; i < resources->ncrtc; ++i)
-    {
-        XRRCrtcInfo *crtc_info =
-            XRRGetCrtcInfo(x11.display, resources, resources->crtcs[i]);
-        if (crtc_info && crtc_info->mode == None)
-        {
-            XRRFreeCrtcInfo(crtc_info);
-            return resources->crtcs[i];
-        }
-        XRRFreeCrtcInfo(crtc_info);
-    }
-    throw std::runtime_error("No unused CRTC found.");
-}
-
 RRMode find_smallest_mode(x11::screen_resources &resources,
                           x11::output_info &output_info)
 {
@@ -370,20 +348,8 @@ void ensure_one_display_is_active(x11::session &x11,
         if (output_info->connection == RR_Connected && output_info->nmode > 0)
         {
             RRMode mode_id = find_smallest_mode(resources, output_info);
-            RRCrtc crtc = find_unused_crtc(x11, resources);
-            if (i >= resources->noutput)
-                throw std::out_of_range("Output index out of range.");
-            RROutput output_id = resources->outputs[i];
-            XRRSetCrtcConfig(x11.display,
-                             resources,
-                             crtc,
-                             CurrentTime,
-                             0,
-                             0,
-                             mode_id,
-                             RR_Rotate_0,
-                             &output_id,
-                             1);
+            x11::crtc crtc(x11, resources);
+            crtc.set_config(0, 0, mode_id, RR_Rotate_0, i, 1);
             return;
         }
     }
@@ -419,16 +385,8 @@ void deactivate_display(x11::session &x11,
     if (output_info->crtc == None)
         return;
 
-    XRRSetCrtcConfig(x11.display,
-                     resources,
-                     output_info->crtc,
-                     CurrentTime,
-                     0,
-                     0,
-                     None,
-                     RR_Rotate_0,
-                     nullptr,
-                     0);
+    x11::crtc crtc(x11, resources, output_info->crtc);
+    crtc.clear();
 }
 
 void set_display_config(
@@ -469,20 +427,14 @@ void set_display_config(
 
         RRMode mode_id = find_mode_id_by_info(x11, resources, want.mode);
         Rotation rotation = rotation_to_x11_rotation(want.rotation);
-        RRCrtc crtc = output_info->crtc ? output_info->crtc
-                                        : find_unused_crtc(x11, resources);
+        x11::crtc crtc(x11, resources, output_info->crtc);
 
-        RROutput id_copy = (RROutput)output_id;
-        XRRSetCrtcConfig(x11.display,
-                         (XRRScreenResources *)resources,
-                         crtc,
-                         CurrentTime,
-                         want.position.x,
-                         want.position.y,
-                         mode_id,
-                         rotation,
-                         &id_copy,
-                         1);
+        crtc.set_config(want.position.x,
+                        want.position.y,
+                        mode_id,
+                        rotation,
+                        output_index,
+                        1);
 
         if (want.is_primary)
         {
