@@ -7,6 +7,7 @@
 #include <dman/config.hpp>
 #include <dman/help.hpp>
 #include <set>
+#include <unordered_set>
 
 void print_usage(const char *name)
 {
@@ -168,7 +169,16 @@ int main(int argc, char *argv[])
     if (list_active_outputs || list_config_outputs.size() > 0)
     {
         std::set<std::string> output_names;
-        std::set<std::string> output_edids;
+        std::unordered_set<std::string> output_edids;
+
+        std::vector<display::output> active_outputs = display::get_outputs();
+
+        std::unordered_set<std::string> connected_edids;
+
+        for (const display::output &output : active_outputs)
+        {
+            connected_edids.insert(output.edid.digest.hex());
+        }
 
         for (const std::string &file : list_config_outputs)
         {
@@ -178,6 +188,9 @@ int main(int argc, char *argv[])
                 if (output_edids.find(edid) != output_edids.end())
                     continue;
 
+                if (connected_edids.find(edid) == connected_edids.end())
+                    continue;
+
                 output_names.insert(cfg_input.get_name(edid));
                 output_edids.insert(edid);
             }
@@ -185,8 +198,7 @@ int main(int argc, char *argv[])
 
         if (list_active_outputs)
         {
-            std::vector<display::output> outputs = display::get_outputs();
-            for (const display::output &output : outputs)
+            for (const display::output &output : active_outputs)
             {
                 std::string edid = output.edid.digest.hex();
 

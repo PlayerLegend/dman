@@ -7,7 +7,7 @@
             "name": "(gdb) Launch dman --output -",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/dman",
+            "program": "${workspaceFolder}/build/src/util/dman",
             "args": [
                 "--output",
                 "-"

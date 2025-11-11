@@ -8,7 +8,7 @@ Options:
     -t, --toggle NAME                 Toggle output by name, '-' to read a line from stdin
     -e, --enable NAME                 Enable output by name, '-' to read a line from stdin
     -d, --disable NAME                Disable output by name, '-' to read a line from stdin
-    -c, --list-config-outputs FILE    Lists outputs named in the given config
+    -c, --list-config-outputs FILE    Lists connected outputs named in the given config
     -a, --list-active-outputs         Lists all currently active outputs via EDID derived names
 
 Configuration files are composed of lines in this format:
