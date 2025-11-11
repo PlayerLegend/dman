@@ -106,6 +106,7 @@ class xi_device_info
     XIDeviceInfo *operator->() const;
 
     display::vec2<uint32_t> get_tablet_dimensions() const;
+    std::string get_name() const;
 };
 
 class x_device

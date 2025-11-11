@@ -155,9 +155,7 @@ XDeviceInfo *device_info::operator[](const std::string &name) const
     }
     return nullptr;
 }
-xi_device_info::
-
-    xi_device_info(session &sess, XID device_id)
+xi_device_info::xi_device_info(session &sess, XID device_id)
 {
     int ndevices;
     contents = XIQueryDevice(sess.display, device_id, &ndevices);
@@ -207,6 +205,13 @@ display::vec2<uint32_t> xi_device_info::get_tablet_dimensions() const
     }
 
     return result;
+}
+
+std::string xi_device_info::get_name() const
+{
+    if (!contents->name)
+        throw std::runtime_error("XI device has no name.");
+    return contents->name;
 }
 x_device::x_device(session &sess, XDeviceInfo *device_info)
 {
