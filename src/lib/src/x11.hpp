@@ -39,6 +39,8 @@ class screen_resources
 
     screen_resources(const screen_resources &) = delete;
     screen_resources &operator=(const screen_resources &) = delete;
+
+    XRRModeInfo *find_mode_info(RRMode mode_id) const;
 };
 
 class output_id
@@ -117,7 +119,7 @@ class x_device
 
     XDevice *operator->() const;
 
-    bool set_matrix_prop(const float matrix[3][3]);
+    bool set_coodinate_transformation_matrix(const float matrix[3][3]);
 };
 
 class crtc
@@ -130,8 +132,7 @@ class crtc
     crtc(session &sess, screen_resources &resources, RRCrtc crtc);
     crtc(session &sess, screen_resources &resources);
     operator RRCrtc() const;
-    void set_config(
-                    int x,
+    void set_config(int x,
                     int y,
                     RRMode mode,
                     Rotation rotation,

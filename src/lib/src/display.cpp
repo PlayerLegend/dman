@@ -7,18 +7,6 @@
 
 #include "x11.hpp"
 
-XRRModeInfo *find_mode_info(XRRScreenResources *resources, RRMode mode_id)
-{
-    for (int i = 0; i < resources->nmode; ++i)
-    {
-        if (resources->modes[i].id == mode_id)
-        {
-            return &resources->modes[i];
-        }
-    }
-    return nullptr;
-}
-
 bool display::mode::operator==(const display::mode &other) const
 {
     return (width == other.width) && (height == other.height) &&
@@ -62,7 +50,7 @@ bool set_crtc_info(display::output &output,
         return false;
     }
     output.is_active = (crtc_info->mode != None);
-    XRRModeInfo *mode_info = find_mode_info(resources, crtc_info->mode);
+    XRRModeInfo *mode_info = resources.find_mode_info(crtc_info->mode);
     if (!mode_info)
     {
         std::cerr << "Warning: Mode ID " << crtc_info->mode
@@ -206,7 +194,8 @@ display::output init_output(x11::session &x11,
     for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
     {
         XRRModeInfo *mode_info =
-            find_mode_info(resources, output_info->modes[mode_index]);
+            resources.find_mode_info(output_info->modes[mode_index]);
+
         if (!mode_info)
         {
             std::cerr << "Warning: Mode ID " << output_info->modes[mode_index]
@@ -301,7 +290,7 @@ RRMode find_smallest_mode(x11::screen_resources &resources,
     for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
     {
         XRRModeInfo *mode_info =
-            find_mode_info(resources, output_info->modes[mode_index]);
+            resources.find_mode_info(output_info->modes[mode_index]);
         if (!mode_info)
         {
             continue;
@@ -670,7 +659,7 @@ bool map_tablet_to_output(std::string tablet_name, std::string output_name)
 
         x11::x_device tablet_device(x11, tablet_device_info);
 
-        return tablet_device.set_matrix_prop(transform_matrix);
+        return tablet_device.set_coodinate_transformation_matrix(transform_matrix);
     }
     return false;
 }

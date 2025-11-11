@@ -71,6 +71,19 @@ screen_resources::operator XRRScreenResources *() const
 {
     return contents;
 }
+
+XRRModeInfo *screen_resources::find_mode_info(RRMode mode_id) const
+{
+    for (int i = 0; i < contents->nmode; ++i)
+    {
+        if (contents->modes[i].id == mode_id)
+        {
+            return &contents->modes[i];
+        }
+    }
+    return nullptr;
+}
+
 output_id::output_id(session &sess,
                      screen_resources &resources,
                      uint32_t output_index)
@@ -211,7 +224,7 @@ XDevice *x_device::operator->() const
     return contents;
 }
 
-bool x_device::set_matrix_prop(const float matrix[3][3])
+bool x_device::set_coodinate_transformation_matrix(const float matrix[3][3])
 {
 
     Atom matrix_prop =
