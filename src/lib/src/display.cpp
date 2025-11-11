@@ -602,38 +602,21 @@ void generate_transform_matrix(display::state state,
 #define M_PI 3.14159
 #endif
 
-    float rotation_angle = 0.0;
-    switch (state.rotation)
-    {
-    case display::rotation::NORMAL:
-        rotation_angle = 0.0;
-        break;
-    case display::rotation::RIGHT:
-        rotation_angle = 90.0;
-        break;
-    case display::rotation::INVERTED:
-        rotation_angle = 180.0;
-        break;
-    case display::rotation::LEFT:
-        rotation_angle = 270.0;
-        break;
-    }
-
-    if (rotation_angle == 90)
+    if (state.rotation == display::rotation::RIGHT)
     {
         rotation[0][0] = 0;
         rotation[0][1] = -1;
         rotation[1][0] = 1;
         rotation[1][1] = 0;
     }
-    else if (rotation_angle == 180)
+    else if (state.rotation == display::rotation::INVERTED)
     {
         rotation[0][0] = -1;
         rotation[0][1] = 0;
         rotation[1][0] = 0;
         rotation[1][1] = -1;
     }
-    else if (rotation_angle == 270)
+    else if (state.rotation == display::rotation::LEFT)
     {
         rotation[0][0] = 0;
         rotation[0][1] = 1;
