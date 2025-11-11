@@ -42,4 +42,5 @@ target_sources(
     src/digest.cpp
     src/display.cpp
     src/config.cpp
+    src/x11.cpp
 )
