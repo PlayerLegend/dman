@@ -1,5 +1,5 @@
-#include "config.hpp"
-#include "dman.hpp"
+#include <dman/config.hpp>
+#include <dman/display.hpp>
 #include <sstream>
 
 std::string strip_whitespace(const std::string &str)

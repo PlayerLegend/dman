@@ -1,11 +1,11 @@
-#include "dman.hpp"
+#include <dman/display.hpp>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #include <cmath>
 #include <iostream>
 #include <cassert>
 #include <cstring>
-#include "config.hpp"
+#include <dman/config.hpp>
 
 static int x_error_handler(Display *dpy, XErrorEvent *ev)
 {

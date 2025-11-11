@@ -27,7 +27,6 @@
             "preLaunchTask": "build",
             "miDebuggerPath": "/usr/bin/gdb"
         },
-
         {
             "name": "(gdb) dman input",
             "type": "cppdbg",
@@ -36,6 +35,32 @@
             "args": [
                 "--input",
                 "/tmp/half"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "(gdb) dman input toggle Secondary",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/dman",
+            "args": [
+                "--input",
+                "/tmp/test",
+                "--toggle",
+                "Secondary"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

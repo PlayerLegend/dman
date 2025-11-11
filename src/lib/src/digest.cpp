@@ -1,4 +1,4 @@
-#include "digest.hpp"
+#include <dman/digest.hpp>
 
 #include <gcrypt.h>
 #include <stdexcept>

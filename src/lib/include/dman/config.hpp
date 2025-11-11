@@ -11,7 +11,6 @@ struct output;
 
 namespace util::display
 {
-
 struct config
 {
     std::unordered_map<std::string, ::display::state> outputs;

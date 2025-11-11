@@ -1,16 +1,20 @@
-#include "dman.hpp"
+#include <dman/display.hpp>
 #include <getopt.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <cmath>
-#include "config.hpp"
+#include <dman/config.hpp>
 #include <dman/help.hpp>
 
-void print_usage(const char *prog_name)
+void print_usage(const char *name)
 {
-    std::cout << "Usage: " << prog_name << " [options]\n";
+    std::cout << "Usage: " << name << " [options]\n";
 
+    std::string help_str(reinterpret_cast<const char *>(help_txt),
+                         help_txt_len);
+
+    std::cout << help_str;
 }
 
 std::string read_stdin()
