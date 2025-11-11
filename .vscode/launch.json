@@ -52,15 +52,14 @@
             "miDebuggerPath": "/usr/bin/gdb"
         },
         {
-            "name": "(gdb) dman input toggle Secondary",
+            "name": "(gdb) dman list config outputs",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/dman",
+            "program": "${workspaceFolder}/build/src/util/dman",
             "args": [
-                "--input",
+                "--list-config-outputs",
                 "/tmp/test",
-                "--toggle",
-                "Secondary"
+                "--list-active-outputs"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

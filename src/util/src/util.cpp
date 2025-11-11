@@ -6,6 +6,7 @@
 #include <cmath>
 #include <dman/config.hpp>
 #include <dman/help.hpp>
+#include <set>
 
 void print_usage(const char *name)
 {
@@ -80,7 +81,8 @@ int main(int argc, char *argv[])
         {"toggle", required_argument, 0, 't'},
         {"enable", required_argument, 0, 'e'},
         {"disable", required_argument, 0, 'd'},
-        {"list-outputs", no_argument, 0, 'l'},
+        {"list-config-outputs", required_argument, 0, 'c'},
+        {"list-active-outputs", no_argument, 0, 'a'},
         {0, 0, 0, 0},
     };
 
@@ -89,7 +91,8 @@ int main(int argc, char *argv[])
     std::vector<std::string> toggle_outputs;
     std::vector<std::string> enable_outputs;
     std::vector<std::string> disable_outputs;
-    bool list_outputs = false;
+    std::vector<std::string> list_config_outputs;
+    bool list_active_outputs = false;
     int option_index = 0;
     int c;
     while (
@@ -108,16 +111,19 @@ int main(int argc, char *argv[])
             output_file = optarg;
             break;
         case 't':
-            toggle_outputs.push_back(get_argument_name(optarg));
+            toggle_outputs.emplace_back(get_argument_name(optarg));
             break;
         case 'e':
-            enable_outputs.push_back(get_argument_name(optarg));
+            enable_outputs.emplace_back(get_argument_name(optarg));
             break;
         case 'd':
-            disable_outputs.push_back(get_argument_name(optarg));
+            disable_outputs.emplace_back(get_argument_name(optarg));
             break;
-        case 'l':
-            list_outputs = true;
+        case 'a':
+            list_active_outputs = true;
+            break;
+        case 'c':
+            list_config_outputs.emplace_back(get_argument_name(optarg));
             break;
         default:
             print_usage(argv[0]);
@@ -159,19 +165,47 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    if (list_outputs)
+    if (list_active_outputs || list_config_outputs.size() > 0)
     {
-        util::display::config cfg_current(display::get_outputs());
-        if (!input_file.empty())
+        std::set<std::string> output_names;
+        std::set<std::string> output_edids;
+
+        for (const std::string &file : list_config_outputs)
         {
-            util::display::config cfg_input(read_file(input_file));
-            cfg_current.set_reference(cfg_input);
+            util::display::config cfg_input(read_file(file));
+            for (const auto &[edid, state] : cfg_input.outputs)
+            {
+                if (output_edids.find(edid) != output_edids.end())
+                    continue;
+
+                output_names.insert(cfg_input.get_name(edid));
+                output_edids.insert(edid);
+            }
         }
 
-        for (const auto &[edid, state] : cfg_current.outputs)
+        if (list_active_outputs)
         {
-            std::cout << cfg_current.get_name(edid) << "\n";
+            std::vector<display::output> outputs = display::get_outputs();
+            for (const display::output &output : outputs)
+            {
+                std::string edid = output.edid.digest.hex();
+
+                if (!output.is_active)
+                    continue;
+
+                if (output_edids.find(edid) != output_edids.end())
+                    continue;
+
+                output_names.insert(output.edid.name);
+                output_edids.insert(edid);
+            }
         }
+
+        for (const std::string &name : output_names)
+        {
+            std::cout << name << std::endl;
+        }
+
         return 0;
     }
 

@@ -1,14 +1,12 @@
 Options:
     -h, --help Show this help message and exit
-    -i, --input FILE     Input configuration file path, or '-' for stdin
-    -o, --output FILE    Output configuration file path, or '-' for stdout
-    -t, --toggle NAME    Toggle output by name, '-' to read a line from stdin
-    -e, --enable NAME    Enable output by name, '-' to read a line from stdin
-    -d, --disable NAME   Disable output by name, '-' to read a line from stdin
-    -l, --list-outputs   Lists active output names. If a config is specified,
-                         additionally lists all output names therein, 
-                         including inactive ones. Intended to be used with
-                         interactive scripts.
+    -i, --input FILE                  Input configuration file path, or '-' for stdin
+    -o, --output FILE                 Output configuration file path, or '-' for stdout
+    -t, --toggle NAME                 Toggle output by name, '-' to read a line from stdin
+    -e, --enable NAME                 Enable output by name, '-' to read a line from stdin
+    -d, --disable NAME                Disable output by name, '-' to read a line from stdin
+    -c, --list-config-outputs FILE    Lists outputs named in the given config
+    -a, --list-active-outputs         Lists all currently active outputs via EDID derived names
 
 Configuration files are composed of lines in this format:
 
@@ -31,5 +29,5 @@ dman --input /some/file --toggle Secondary
 
 ## List outputs, select one using dmenu, and toggle it.
 ## Empty inputs are ignored, so this is escape-friendly. 
-dman --input /some/file --list-outputs | dmenu -i | dman --input /some/file --toggle -
+dman --list-config-outputs /some/file --list-active-outputs | dmenu -i | dman --input /some/file --toggle -
 
