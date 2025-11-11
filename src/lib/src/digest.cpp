@@ -50,16 +50,7 @@ uint8_t hex_char_to_value(char c)
     throw std::invalid_argument("Invalid hex character");
 }
 
-void digest::sha256::operator=(const std::string &hex_str)
+digest::sha256::sha256(const std::string &input)
+    : sha256(input.data(), input.size())
 {
-    if (hex_str.length() != 64)
-    {
-        throw std::invalid_argument("Invalid hex string length for sha256");
-    }
-    for (size_t i = 0; i < 32; ++i)
-    {
-        char high = tolower(hex_str[i * 2]);
-        char low = tolower(hex_str[i * 2 + 1]);
-        content[i] = hex_char_to_value(low) + hex_char_to_value(high) * 16;
-    }
 }

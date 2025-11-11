@@ -75,4 +75,10 @@ target_sources(
     src/display.cpp
     src/config.cpp
     src/x11.cpp
+    src/evdev.cpp
 )
+
+# Tests
+
+enable_testing()
+add_subdirectory(test/evdev)
