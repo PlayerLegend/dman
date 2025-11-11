@@ -1,3 +1,6 @@
+
+Save and restore display configurations, identifying displays via EDID rather than output name
+
 Options:
     -h, --help Show this help message and exit
     -i, --input FILE                  Input configuration file path, or '-' for stdin
@@ -16,18 +19,18 @@ Config files are intended to be auto generated, but it may be helpful to alter
 the name=something key/value pair to be a familiar name. Generated configs
 provide names derived from the monitor's EDID. 
 
-# Example usage:
+Example usage:
 
-## Save the current display configuration
+# Save the current display configuration
 dman --output /some/file
 
-## Restore a previous display configuration
+# Restore a previous display configuration
 dman --input /some/file     # Restores a previous display configuration
 
-## Toggles a monitor named 'Secondary' in the configuration file
+# Toggles a monitor named 'Secondary' in the configuration file
 dman --input /some/file --toggle Secondary
 
-## List outputs, select one using dmenu, and toggle it.
-## Empty inputs are ignored, so this is escape-friendly. 
+# List outputs, select one using dmenu, and toggle it.
+# Empty inputs are ignored, so this is escape-friendly. 
 dman --list-config-outputs /some/file --list-active-outputs | dmenu -i | dman --input /some/file --toggle -
 
