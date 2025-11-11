@@ -71,13 +71,4 @@ class output
 std::vector<output> get_outputs();
 void set_outputs(const std::unordered_map<std::string, display::state> &);
 
-// class session
-// {
-//   public:
-//     session() {};
-//     operator std::vector<output>();
-//     void operator=(const std::unordered_map<std::string, state> &);
-//     void operator=(const util::display::config &);
-// };
-
 } // namespace display

@@ -1,6 +1,8 @@
 #include <dman/display.hpp>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
+#include <X11/extensions/XInput.h>
+#include <X11/extensions/XInput2.h>
 #include <cmath>
 #include <iostream>
 #include <cassert>
@@ -155,6 +157,174 @@ class crtc_info
     operator bool() const
     {
         return contents != nullptr;
+    }
+};
+
+class device_info
+{
+    XDeviceInfo *contents;
+    int ndevices;
+
+  public:
+    device_info(session &sess)
+    {
+        contents = XListInputDevices(sess.display, &ndevices);
+    }
+    ~device_info()
+    {
+        XFreeDeviceList(contents);
+    }
+    XDeviceInfo *operator[](const std::string &name) const
+    {
+        for (int i = 0; i < ndevices; ++i)
+        {
+            if (name == (std::string)contents[i].name)
+            {
+                return &contents[i];
+            }
+        }
+        return nullptr;
+    }
+};
+
+class xi_device_info
+{
+    XIDeviceInfo *contents;
+
+  public:
+    xi_device_info(session &sess, XID device_id)
+    {
+        int ndevices;
+        contents = XIQueryDevice(sess.display, device_id, &ndevices);
+        if (!contents)
+            throw std::runtime_error("Failed to get XI device info.");
+    }
+    ~xi_device_info()
+    {
+        XIFreeDeviceInfo(contents);
+    }
+    XIDeviceInfo *operator[](const std::string &name) const
+    {
+        for (int i = 0; i < contents->num_classes; ++i)
+        {
+            if (name == (std::string)contents[i].name)
+            {
+                return &contents[i];
+            }
+        }
+        return nullptr;
+    }
+    XIDeviceInfo *operator->() const
+    {
+        return contents;
+    }
+    display::vec2<uint32_t> get_tablet_dimensions() const
+    {
+        display::vec2<uint32_t> result = {0, 0};
+
+        XIAnyClassInfo **classes = contents->classes;
+
+        for (int i = 0; i < contents->num_classes; ++i)
+        {
+            if (classes[i]->type == XIValuatorClass)
+            {
+                XIValuatorClassInfo *valuator =
+                    (XIValuatorClassInfo *)classes[i];
+
+                if (valuator->number == 0) // X axis
+                {
+                    result.x = valuator->max - valuator->min;
+                }
+                else if (valuator->number == 1) // Y axis
+                {
+                    result.y = valuator->max - valuator->min;
+                }
+            }
+        }
+
+        return result;
+    }
+};
+
+class x_device
+{
+    XDevice *contents;
+    Display *display;
+
+  public:
+    x_device(session &sess, XDeviceInfo *device_info)
+    {
+        contents = XOpenDevice(sess.display, device_info->id);
+        if (!contents)
+            throw std::runtime_error("Failed to open X device.");
+        display = sess.display;
+    }
+    ~x_device()
+    {
+        XCloseDevice(display, contents);
+    }
+    XDevice *operator->() const
+    {
+        return contents;
+    }
+
+    bool set_matrix_prop(const float matrix[3][3])
+    {
+
+        Atom matrix_prop =
+            XInternAtom(display, "Coordinate Transformation Matrix", False);
+        if (matrix_prop == None)
+            return false;
+
+        const float *float_matrix = &matrix[0][0];
+
+        long long_matrix[9];
+
+        for (int i = 0; i < 9; i++)
+        {
+            *(float *)(long_matrix + i) = float_matrix[i];
+        }
+
+        Atom type;
+        int format;
+        unsigned long nitems;
+        unsigned long bytes_after;
+        float *data;
+        XGetDeviceProperty(display,
+                           contents,
+                           matrix_prop,
+                           0,
+                           9,
+                           False,
+                           AnyPropertyType,
+                           &type,
+                           &format,
+                           &nitems,
+                           &bytes_after,
+                           (unsigned char **)&data);
+
+        if (format != 32 || type != XInternAtom(display, "FLOAT", True))
+
+        {
+            if (data)
+                XFree(data);
+
+            return false;
+        }
+
+        XChangeDeviceProperty(display,
+                              contents,
+                              matrix_prop,
+                              type,
+                              format,
+                              PropModeReplace,
+                              (unsigned char *)matrix,
+                              9);
+
+        XFree(data);
+        XFlush(display);
+
+        return true;
     }
 };
 
@@ -348,6 +518,48 @@ display::edid get_edid(x11::session &x11, RROutput output)
 //     return resources->noutput;
 // }
 
+display::output init_output(x11::session &x11,
+                            x11::screen_resources &resources,
+                            uint32_t output_index)
+{
+    display::output output;
+
+    x11::output_id output_id(x11, resources, output_index);
+    x11::output_info output_info(x11, resources, output_id);
+    output.name = output_info->name;
+    output.is_primary =
+        (resources->outputs[output_index] == x11.primary_output);
+    if (output_info->connection != RR_Connected)
+        return output;
+
+    for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
+    {
+        XRRModeInfo *mode_info =
+            find_mode_info(resources, output_info->modes[mode_index]);
+        if (!mode_info)
+        {
+            std::cerr << "Warning: Mode ID " << output_info->modes[mode_index]
+                      << " not found in resources." << std::endl;
+            continue;
+        }
+
+        output.modes.emplace_back(calc_mode_from_info(mode_info));
+    }
+
+    if (output_info->crtc)
+    {
+        if (!set_crtc_info(output, x11, resources, output_info))
+        {
+            std::cerr << "Warning: Failed to set CRTC info for output "
+                      << output_info->name << std::endl;
+        }
+    }
+
+    output.edid = get_edid(x11, resources->outputs[output_index]);
+
+    return output;
+}
+
 std::vector<display::output> display::get_outputs()
 {
     std::vector<display::output> result;
@@ -357,42 +569,7 @@ std::vector<display::output> display::get_outputs()
 
     for (uint32_t output_index = 0; output_index < resources->noutput;
          output_index++)
-    {
-
-        display::output &output = result.emplace_back();
-        output.is_primary =
-            (resources->outputs[output_index] == x11.primary_output);
-        x11::output_id output_id(x11, resources, output_index);
-        x11::output_info output_info(x11, resources, output_id);
-        output.name = output_info->name;
-        if (output_info->connection != RR_Connected)
-            continue;
-
-        for (int mode_index = 0; mode_index < output_info->nmode; ++mode_index)
-        {
-            XRRModeInfo *mode_info =
-                find_mode_info(resources, output_info->modes[mode_index]);
-            if (!mode_info)
-            {
-                std::cerr << "Warning: Mode ID "
-                          << output_info->modes[mode_index]
-                          << " not found in resources." << std::endl;
-                continue;
-            }
-
-            output.modes.emplace_back(calc_mode_from_info(mode_info));
-        }
-
-        if (output_info->crtc)
-        {
-            if (!set_crtc_info(output, x11, resources, output_info))
-            {
-                std::cerr << "Warning: Failed to set CRTC info for output "
-                          << output_info->name << std::endl;
-            }
-        }
-        output.edid = get_edid(x11, resources->outputs[output_index]);
-    }
+        result.emplace_back(init_output(x11, resources, output_index));
 
     return result;
 }
@@ -743,4 +920,145 @@ void display::output::operator=(const state &state)
     position = state.position;
     rotation = state.rotation;
     is_primary = state.is_primary;
+}
+
+void multiply_matrices(float result[3][3], float a[3][3], float b[3][3])
+{
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            result[i][j] = 0;
+            for (int k = 0; k < 3; k++)
+            {
+                result[i][j] += a[i][k] * b[k][j];
+            }
+        }
+    }
+}
+
+void generate_transform_matrix(display::state state,
+                               float transform_matrix[3][3])
+{
+    // Initialize identity matrix
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            transform_matrix[i][j] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+
+    // Translate matrix
+    float translate[3][3] = {
+        {1, 0, (float)state.position.x},
+        {0, 1, (float)state.position.y},
+        {0, 0, 1},
+    };
+
+    // Rotation matrix
+    float rotation[3][3] = {
+        {1, 0, 0},
+        {0, 1, 0},
+        {0, 0, 1},
+    };
+
+    float scale[3][3] = {
+        {(float)state.mode.width, 0, 0},
+        {0, (float)state.mode.height, 0},
+        {0, 0, 1},
+    };
+
+#ifndef M_PI
+#define M_PI 3.14159
+#endif
+
+    float rotation_angle = 0.0;
+    switch (state.rotation)
+    {
+    case display::rotation::NORMAL:
+        rotation_angle = 0.0;
+        break;
+    case display::rotation::RIGHT:
+        rotation_angle = 90.0;
+        break;
+    case display::rotation::INVERTED:
+        rotation_angle = 180.0;
+        break;
+    case display::rotation::LEFT:
+        rotation_angle = 270.0;
+        break;
+    }
+
+    if (rotation_angle == 90)
+    {
+        rotation[0][0] = 0;
+        rotation[0][1] = -1;
+        rotation[1][0] = 1;
+        rotation[1][1] = 0;
+    }
+    else if (rotation_angle == 180)
+    {
+        rotation[0][0] = -1;
+        rotation[0][1] = 0;
+        rotation[1][0] = 0;
+        rotation[1][1] = -1;
+    }
+    else if (rotation_angle == 270)
+    {
+        rotation[0][0] = 0;
+        rotation[0][1] = 1;
+        rotation[1][0] = -1;
+        rotation[1][1] = 0;
+    }
+
+    float temp[3][3];
+    multiply_matrices(temp, rotation, translate);
+    multiply_matrices(transform_matrix, temp, scale);
+}
+
+bool map_tablet_to_output(std::string tablet_name, std::string output_name)
+{
+    x11::session x11;
+    x11::screen_resources resources(x11);
+
+    Screen *default_screen = XDefaultScreenOfDisplay(x11.display);
+    x11::device_info devices(x11);
+
+    XDeviceInfo *tablet_device_info = devices[tablet_name];
+
+    if (!tablet_device_info)
+        return false;
+
+    for (size_t i = 0; i < resources->noutput; ++i)
+    {
+        x11::output_id output_id(x11, resources, i);
+        x11::output_info output_info(x11, resources, output_id);
+
+        if (output_info->connection != RR_Connected)
+            continue;
+
+        display::edid edid = get_edid(x11, resources->outputs[i]);
+
+        if (output_name != (std::string)output_info->name &&
+            output_name != edid.digest.hex())
+            continue;
+
+        display::output output = init_output(x11, resources, i);
+        display::state state = output;
+
+        x11::xi_device_info xi_device_info(x11, tablet_device_info->id);
+        display::vec2<uint32_t> tablet_dimensions =
+            xi_device_info.get_tablet_dimensions();
+        if (tablet_dimensions.x == 0 || tablet_dimensions.y == 0)
+            return false;
+
+        float transform_matrix[3][3];
+        generate_transform_matrix(state, transform_matrix);
+
+        x11::x_device tablet_device(x11, tablet_device_info);
+
+        return tablet_device.set_matrix_prop(transform_matrix);
+    }
+    return false;
 }
