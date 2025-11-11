@@ -10,4 +10,3 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_subdirectory(src/lib)
 add_subdirectory(src/util)
 
-# install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include)
