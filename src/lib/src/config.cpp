@@ -245,10 +245,9 @@ void util::display::config::set_reference(const util::display::config &other)
     for (const auto &[edid, other_state] : other.outputs)
     {
         ::display::state &have_state = outputs[edid];
-        if (have_state.is_active)
-            continue;
+        bool is_active = have_state.is_active;
         have_state = other_state;
-        have_state.is_active = false;
+        have_state.is_active = is_active;
     }
 
     for (const auto &[name, edid] : other.name_to_edid)

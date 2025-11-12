@@ -344,27 +344,27 @@ void ensure_one_display_is_active(x11::session &x11,
     }
 }
 
-display::vec2<uint32_t> get_total_screen_size(
+display::vec2<int32_t> get_total_screen_size(
     const std::unordered_map<std::string, display::state> &outputs)
 {
-    uint32_t max_x = 0;
-    uint32_t max_y = 0;
+    display::vec2<uint32_t> max{0, 0};
 
     for (const auto &[name, state] : outputs)
     {
         if (!state.is_active)
             continue;
 
-        uint32_t right = state.position.x + state.mode.width;
-        uint32_t bottom = state.position.y + state.mode.height;
+        display::vec2<uint32_t> size = {state.mode.width, state.mode.height};
 
-        if (right > max_x)
-            max_x = right;
-        if (bottom > max_y)
-            max_y = bottom;
+        display::vec2<uint32_t> bottom_right = state.position + size;
+
+        if (max.x < bottom_right.x)
+            max.x = bottom_right.x;
+        if (max.y < bottom_right.y)
+            max.y = bottom_right.y;
     }
 
-    return {max_x, max_y};
+    return {(int32_t)max.x, (int32_t)max.y};
 }
 
 void deactivate_display(x11::session &x11,
@@ -378,11 +378,38 @@ void deactivate_display(x11::session &x11,
     crtc.clear();
 }
 
+display::vec2<int32_t>
+get_min(const std::unordered_map<std::string, display::state> &outputs)
+{
+    int32_t min_x = INT32_MAX;
+    int32_t min_y = INT32_MAX;
+
+    for (const auto &[name, state] : outputs)
+    {
+        if (!state.is_active)
+            continue;
+
+        if (state.position.x < min_x)
+            min_x = state.position.x;
+        if (state.position.y < min_y)
+            min_y = state.position.y;
+    }
+
+    if (min_x == INT32_MAX)
+        min_x = 0;
+    if (min_y == INT32_MAX)
+        min_y = 0;
+
+    return {min_x, min_y};
+}
+
 void set_display_config(
     const std::unordered_map<std::string, display::state> &outputs,
     x11::session &x11,
     x11::screen_resources &resources)
 {
+    display::vec2<int32_t> min_position = get_min(outputs);
+
     for (uint32_t output_index = 0, end = resources->noutput;
          output_index < end;
          output_index++)
@@ -418,8 +445,15 @@ void set_display_config(
         Rotation rotation = rotation_to_x11_rotation(want.rotation);
         x11::crtc crtc(x11, resources, output_info->crtc);
 
-        crtc.set_config(want.position.x,
-                        want.position.y,
+        display::vec2<int32_t> want_position = min_position;
+        want_position = want_position - min_position;
+
+        if (want_position.x < 0 || want_position.y < 0)
+            throw std::runtime_error(
+                "Minimum position calculation error: negative position.");
+
+        crtc.set_config(want.position.x - min_position.x,
+                        want.position.y - min_position.y,
                         mode_id,
                         rotation,
                         output_index,
@@ -434,7 +468,8 @@ void set_display_config(
     }
 
     static constexpr size_t pixels_per_milimeter = 3;
-    display::vec2<uint32_t> total_size = get_total_screen_size(outputs);
+    display::vec2<int32_t> total_size =
+        get_total_screen_size(outputs) - min_position;
 
     if (total_size.x > 0 && total_size.y > 0)
     {
@@ -659,7 +694,8 @@ bool map_tablet_to_output(std::string tablet_name, std::string output_name)
 
         x11::x_device tablet_device(x11, tablet_device_info);
 
-        return tablet_device.set_coodinate_transformation_matrix(transform_matrix);
+        return tablet_device.set_coodinate_transformation_matrix(
+            transform_matrix);
     }
     return false;
 }

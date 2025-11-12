@@ -44,6 +44,15 @@ template <typename T> class vec2
   public:
     T x;
     T y;
+
+    vec2<T> operator+(const vec2<T> &other) const
+    {
+        return vec2<T>{x + other.x, y + other.y};
+    }
+    vec2<T> operator-(const vec2<T> &other) const
+    {
+        return vec2<T>{x - other.x, y - other.y};
+    }
 };
 
 struct state

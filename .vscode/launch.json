@@ -28,13 +28,15 @@
             "miDebuggerPath": "/usr/bin/gdb"
         },
         {
-            "name": "(gdb) dman input",
+            "name": "(gdb) dman toggle",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/src/util/dman",
             "args": [
                 "--input",
-                "/tmp/half"
+                "/tmp/test",
+                "--toggle",
+                "Laptop"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
