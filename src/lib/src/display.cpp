@@ -177,6 +177,109 @@ display::edid get_edid(x11::session &x11, RROutput output)
     return result;
 }
 
+display::tearfree get_tearfree(x11::session &x11, x11::output_id output)
+{
+    Atom atom_tearfree = XInternAtom(x11.display, "TearFree", False);
+
+    Atom atom_on = XInternAtom(x11.display, "on", False);
+    Atom atom_auto = XInternAtom(x11.display, "auto", False);
+    Atom atom_off = XInternAtom(x11.display, "off", False);
+
+    if (atom_tearfree == None || atom_on == None || atom_auto == None ||
+        atom_off == None)
+    {
+        std::cerr << "Couldn't get atom names\n";
+        return display::tearfree::UNSET;
+    }
+
+    Atom actual_type = 0;
+    int actual_format = 0;
+    unsigned long nitems = 0;
+    unsigned long bytes_after = 0;
+    unsigned char *prop = nullptr;
+
+    int status = XRRGetOutputProperty(x11.display,
+                                      output,
+                                      atom_tearfree,
+                                      0,
+                                      1, // request one element
+                                      False,
+                                      False,
+                                      AnyPropertyType,
+                                      &actual_type,
+                                      &actual_format,
+                                      &nitems,
+                                      &bytes_after,
+                                      &prop);
+
+    if (!prop)
+        return display::tearfree::UNSET;
+
+    display::tearfree result = display::tearfree::UNSET;
+
+    if (status == Success)
+    {
+        if (actual_format == 32)
+        {
+            Atom prop_atom = *(uint32_t *)prop;
+            if (prop_atom == atom_on)
+
+                result = display::tearfree::ON;
+            else if (prop_atom == atom_off)
+                result = display::tearfree::OFF;
+            else if (prop_atom == atom_auto)
+                result = display::tearfree::AUTO;
+        }
+        else
+            std::cerr << "Format for TearFree isn't a 32-bit integer\n";
+    }
+
+    XFree(prop);
+
+    return result;
+}
+
+bool set_tearfree(const x11::session &x11,
+                  x11::output_id output,
+                  display::tearfree value)
+{
+    Atom atom_tearfree = XInternAtom(x11.display, "TearFree", False);
+
+    Atom atom_value;
+
+    switch (value)
+    {
+    case display::tearfree::ON:
+        atom_value = XInternAtom(x11.display, "on", False);
+        break;
+    case display::tearfree::AUTO:
+        atom_value = XInternAtom(x11.display, "auto", False);
+        break;
+    case display::tearfree::OFF:
+        atom_value = XInternAtom(x11.display, "off", False);
+        break;
+    default:
+        return false;
+    }
+
+    if (atom_tearfree == None || atom_value == None)
+    {
+        std::cerr << "Couldn't get atom names\n";
+        return false;
+    }
+
+    XRRChangeOutputProperty(x11.display,
+                                         output,
+                                         atom_tearfree,
+                                         XA_ATOM,
+                                         32,
+                                         PropModeReplace,
+                                         (unsigned char *)&atom_value,
+                                         1);
+
+    return true;
+}
+
 display::output init_output(x11::session &x11,
                             x11::screen_resources &resources,
                             uint32_t output_index)
@@ -216,6 +319,8 @@ display::output init_output(x11::session &x11,
     }
 
     output.edid = get_edid(x11, resources->outputs[output_index]);
+
+    output.is_tearfree = get_tearfree(x11, output_id);
 
     return output;
 }
@@ -292,9 +397,7 @@ RRMode find_smallest_mode(x11::screen_resources &resources,
         XRRModeInfo *mode_info =
             resources.find_mode_info(output_info->modes[mode_index]);
         if (!mode_info)
-        {
             continue;
-        }
         display::mode mode = calc_mode_from_info(mode_info);
         double volume = (double)mode.width * (double)mode.height * mode.rate;
         if (volume < smallest_volume)
@@ -465,6 +568,8 @@ void set_display_config(
                                 x11.default_root_window(),
                                 output_id);
         }
+
+        set_tearfree(x11, output_id, want.is_tearfree);
     }
 
     static constexpr size_t pixels_per_milimeter = 3;
@@ -558,6 +663,7 @@ display::output::operator display::state() const
         .rotation = rotation,
         .is_primary = is_primary,
         .is_active = is_active,
+        .is_tearfree = is_tearfree,
     };
 }
 
@@ -573,6 +679,7 @@ void display::output::operator=(const state &state)
     position = state.position;
     rotation = state.rotation;
     is_primary = state.is_primary;
+    is_tearfree = state.is_tearfree;
 }
 
 void multiply_matrices(float result[3][3], float a[3][3], float b[3][3])

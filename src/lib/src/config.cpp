@@ -101,6 +101,15 @@ util::display::config::config(const std::string &config_text)
                 else if (value == "inverted")
                     state.rotation = ::display::rotation::INVERTED;
             }
+            else if (key == "tearfree")
+            {
+                if (value == "on")
+                    state.is_tearfree = ::display::tearfree::ON;
+                else if (value == "auto")
+                    state.is_tearfree = ::display::tearfree::AUTO;
+                else if (value == "off")
+                    state.is_tearfree = ::display::tearfree::OFF;
+            }
         }
     }
 }
@@ -179,6 +188,7 @@ util::display::config::operator std::string() const
             const std::string &name = it->second;
             oss << " name=" << name;
         }
+
         oss << " rotation=";
         switch (state.rotation)
         {
@@ -195,10 +205,29 @@ util::display::config::operator std::string() const
             oss << "inverted";
             break;
         }
+
         if (state.is_primary)
-        {
             oss << " primary";
+
+        if (state.is_tearfree != ::display::tearfree::UNSET)
+        {
+            oss << " tearfree=";
+            switch (state.is_tearfree)
+            {
+            case ::display::tearfree::ON:
+                oss << "on";
+                break;
+            case ::display::tearfree::AUTO:
+                oss << "auto";
+                break;
+            case ::display::tearfree::OFF:
+                oss << "off";
+                break;
+            default:
+                break;
+            }
         }
+
         oss << "\n";
     }
     return oss.str();

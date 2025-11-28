@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <dman/digest.hpp>
 #include <vector>
 #include <unordered_map>
@@ -39,6 +40,14 @@ enum class rotation : uint8_t
     INVERTED,
 };
 
+enum class tearfree : uint8_t
+{
+    UNSET,
+    AUTO,
+    ON,
+    OFF
+};
+
 template <typename T> class vec2
 {
   public:
@@ -62,6 +71,7 @@ struct state
     enum rotation rotation;
     bool is_primary;
     bool is_active;
+    tearfree is_tearfree = tearfree::UNSET;
 };
 class output
 {
@@ -72,6 +82,7 @@ class output
     uint32_t mode_index = 0;
     bool is_primary = false;
     bool is_active = false;
+    tearfree is_tearfree = tearfree::UNSET;
     enum rotation rotation;
     class edid edid;
     void operator=(const mode &mode);
