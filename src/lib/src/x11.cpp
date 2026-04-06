@@ -1,14 +1,11 @@
 #include "x11.hpp"
-#include <iostream>
 
 #include <dman/display.hpp>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/extensions/XInput.h>
 #include <X11/extensions/XInput2.h>
-#include <cmath>
 #include <cassert>
-#include <cstring>
 #include <dman/config.hpp>
 #include <stdexcept>
 
@@ -331,29 +328,6 @@ void crtc::set_config(int x,
 {
     if (mode == None)
         throw std::runtime_error("Mode is None");
-
-    XRRModeInfo *mode_info = resources.find_mode_info(mode);
-    if (!mode_info)
-        throw std::runtime_error("Mode id not found in screen resources.");
-
-    uint32_t mode_width = mode_info->width;
-    uint32_t mode_height = mode_info->height;
-
-    // refresh (Hz) = dotClock / (hTotal * vTotal)
-    double refresh_hz = 0.0;
-    if (mode_info->hTotal > 0 && mode_info->vTotal > 0)
-        refresh_hz = (double)mode_info->dotClock /
-                     ((double)mode_info->hTotal * (double)mode_info->vTotal);
-
-                     std::cout << "Setting CRTC config: "
-                               << "x=" << x << ", y=" << y
-                               << ", mode=" << mode
-                               << " (" << mode_width << "x" << mode_height
-                               << " @ " << refresh_hz << "Hz)"
-                               << ", rotation=" << rotation
-                               << ", output_index=" << output_index
-                               << ", noutputs=" << noutputs
-                               << std::endl;    
 
     XRRSetCrtcConfig(sess.display,
                      resources,
