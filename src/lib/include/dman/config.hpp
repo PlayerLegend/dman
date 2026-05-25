@@ -37,3 +37,11 @@ struct config
     void disable_output(const std::string &name);
 };
 } // namespace util::display
+
+namespace util::tablet {
+    class config {
+        public:
+        
+
+    };
+}
