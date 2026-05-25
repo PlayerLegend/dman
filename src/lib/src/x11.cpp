@@ -229,7 +229,6 @@ XDevice *x_device::operator->() const
 
 bool x_device::set_coodinate_transformation_matrix(const float matrix[3][3])
 {
-
     Atom matrix_prop =
         XInternAtom(display, "Coordinate Transformation Matrix", False);
     if (matrix_prop == None)
