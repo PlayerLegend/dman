@@ -6,6 +6,13 @@
 
 namespace display
 {
+
+bool display::mode::operator==(const display::mode &other) const
+{
+    return (width == other.width) && (height == other.height) &&
+           std::fabs(rate - other.rate) < 1.5;
+}
+
 static std::vector<uint8_t> s_read_binary(const std::string &path)
 {
     std::ifstream stream(path, std::ios::binary | std::ios::ate);
@@ -58,12 +65,6 @@ static std::unordered_map<std::string, std::vector<uint8_t>> s_list_edids()
     }
 
     return result;
-}
-
-bool display::mode::operator==(const display::mode &other) const
-{
-    return (width == other.width) && (height == other.height) &&
-           std::fabs(rate - other.rate) < 1.5;
 }
 
 } // namespace display
