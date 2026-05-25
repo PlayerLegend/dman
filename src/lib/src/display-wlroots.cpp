@@ -4,6 +4,15 @@
 #include <filesystem>
 #include <fstream>
 
+#define WLR_USE_UNSTABLE
+
+extern "C"
+{
+#include <wayland-server-core.h>
+#include <wlr/backend.h>
+#include <wlr/types/wlr_output.h>
+};
+
 namespace display
 {
 
@@ -66,5 +75,7 @@ static std::unordered_map<std::string, std::vector<uint8_t>> s_list_edids()
 
     return result;
 }
+
+static void s_on_new_output_callback(wl_listener *listener, void *data) {}
 
 } // namespace display
