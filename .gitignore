@@ -10,3 +10,4 @@ build
 core
 *.blend1
 subprojects/SDL
+*.rej
