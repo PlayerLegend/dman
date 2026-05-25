@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstring>
 #include <dman/config.hpp>
+#include <dman/exception.hpp>
 
 #include "x11.hpp"
 
@@ -13,8 +14,8 @@ bool display::mode::operator==(const display::mode &other) const
            std::fabs(rate - other.rate) < 1.5;
 }
 
-uint32_t get_mode_index(const std::vector<display::mode> &modes,
-                        const display::mode &target_mode)
+static uint32_t get_mode_index(const std::vector<display::mode> &modes,
+                               const display::mode &target_mode)
 {
     for (size_t i = 0, size = modes.size(); i < size; i++)
     {
@@ -26,7 +27,7 @@ uint32_t get_mode_index(const std::vector<display::mode> &modes,
     throw std::runtime_error("Target mode not found in mode list.");
 }
 
-display::mode calc_mode_from_info(XRRModeInfo *info)
+static display::mode calc_mode_from_info(XRRModeInfo *info)
 {
     display::mode result = {.name = info->name ? info->name : ""};
 
@@ -37,10 +38,10 @@ display::mode calc_mode_from_info(XRRModeInfo *info)
     return result;
 }
 
-bool set_crtc_info(display::output &output,
-                   x11::session &x11,
-                   x11::screen_resources &resources,
-                   x11::output_info &output_info)
+static bool set_crtc_info(display::output &output,
+                          x11::session &x11,
+                          x11::screen_resources &resources,
+                          x11::output_info &output_info)
 {
     x11::crtc_info crtc_info(x11, resources, output_info->crtc);
     if (!crtc_info)
@@ -85,7 +86,7 @@ bool set_crtc_info(display::output &output,
     return true;
 }
 
-size_t get_edid_nitems(x11::session &x11, RROutput output)
+static size_t get_edid_nitems(x11::session &x11, RROutput output)
 {
     Atom edid_atom = XInternAtom(x11.display, "EDID", True);
     if (edid_atom == None)
@@ -123,7 +124,7 @@ size_t get_edid_nitems(x11::session &x11, RROutput output)
     return bytes_after / (actual_format / 8);
 }
 
-display::edid get_edid(x11::session &x11, RROutput output)
+static display::edid get_edid(x11::session &x11, RROutput output)
 {
     Atom edid_atom = XInternAtom(x11.display, "EDID", True);
     if (edid_atom == None)
@@ -177,7 +178,7 @@ display::edid get_edid(x11::session &x11, RROutput output)
     return result;
 }
 
-display::tearfree get_tearfree(x11::session &x11, x11::output_id output)
+static display::tearfree get_tearfree(x11::session &x11, x11::output_id output)
 {
     Atom atom_tearfree = XInternAtom(x11.display, "TearFree", False);
 
@@ -239,9 +240,9 @@ display::tearfree get_tearfree(x11::session &x11, x11::output_id output)
     return result;
 }
 
-bool set_tearfree(const x11::session &x11,
-                  x11::output_id output,
-                  display::tearfree value)
+static bool set_tearfree(const x11::session &x11,
+                         x11::output_id output,
+                         display::tearfree value)
 {
     Atom atom_tearfree = XInternAtom(x11.display, "TearFree", False);
 
@@ -269,20 +270,20 @@ bool set_tearfree(const x11::session &x11,
     }
 
     XRRChangeOutputProperty(x11.display,
-                                         output,
-                                         atom_tearfree,
-                                         XA_ATOM,
-                                         32,
-                                         PropModeReplace,
-                                         (unsigned char *)&atom_value,
-                                         1);
+                            output,
+                            atom_tearfree,
+                            XA_ATOM,
+                            32,
+                            PropModeReplace,
+                            (unsigned char *)&atom_value,
+                            1);
 
     return true;
 }
 
-display::output init_output(x11::session &x11,
-                            x11::screen_resources &resources,
-                            uint32_t output_index)
+static display::output init_output(x11::session &x11,
+                                   x11::screen_resources &resources,
+                                   uint32_t output_index)
 {
     display::output output;
 
@@ -339,7 +340,7 @@ std::vector<display::output> display::get_outputs()
     return result;
 }
 
-const display::output *
+static const display::output *
 find_output_by_name(const std::vector<display::output> &outputs,
                     const std::string &name)
 {
@@ -353,9 +354,9 @@ find_output_by_name(const std::vector<display::output> &outputs,
     return nullptr;
 }
 
-RRMode find_mode_id_by_info(x11::session &x11,
-                            x11::screen_resources &resources,
-                            const display::mode &target_mode)
+static RRMode find_mode_id_by_info(x11::session &x11,
+                                   x11::screen_resources &resources,
+                                   const display::mode &target_mode)
 {
     for (int i = 0; i < resources->nmode; ++i)
     {
@@ -369,7 +370,7 @@ RRMode find_mode_id_by_info(x11::session &x11,
     throw std::runtime_error("Mode not found in resources.");
 }
 
-Rotation rotation_to_x11_rotation(display::rotation rotation)
+static Rotation rotation_to_x11_rotation(display::rotation rotation)
 {
     switch (rotation)
     {
@@ -386,8 +387,8 @@ Rotation rotation_to_x11_rotation(display::rotation rotation)
     }
 }
 
-RRMode find_smallest_mode(x11::screen_resources &resources,
-                          x11::output_info &output_info)
+static RRMode find_smallest_mode(x11::screen_resources &resources,
+                                 x11::output_info &output_info)
 {
     RRMode smallest_mode = None;
     double smallest_volume = INFINITY;
@@ -409,7 +410,8 @@ RRMode find_smallest_mode(x11::screen_resources &resources,
     return smallest_mode;
 }
 
-bool is_one_display_active(x11::session &x11, x11::screen_resources &resources)
+static bool is_one_display_active(x11::session &x11,
+                                  x11::screen_resources &resources)
 {
     for (size_t i = 0; i < resources->noutput; ++i)
     {
@@ -421,8 +423,8 @@ bool is_one_display_active(x11::session &x11, x11::screen_resources &resources)
     return false;
 }
 
-void ensure_one_display_is_active(x11::session &x11,
-                                  x11::screen_resources &resources)
+static void ensure_one_display_is_active(x11::session &x11,
+                                         x11::screen_resources &resources)
 {
 
     if (is_one_display_active(x11, resources))
@@ -447,7 +449,7 @@ void ensure_one_display_is_active(x11::session &x11,
     }
 }
 
-display::vec2<int32_t> get_total_screen_size(
+static display::vec2<int32_t> get_total_screen_size(
     const std::unordered_map<std::string, display::state> &outputs)
 {
     display::vec2<uint32_t> max{0, 0};
@@ -470,9 +472,9 @@ display::vec2<int32_t> get_total_screen_size(
     return {(int32_t)max.x, (int32_t)max.y};
 }
 
-void deactivate_display(x11::session &x11,
-                        x11::screen_resources &resources,
-                        x11::output_info &output_info)
+static void deactivate_display(x11::session &x11,
+                               x11::screen_resources &resources,
+                               x11::output_info &output_info)
 {
     if (output_info->crtc == None)
         return;
@@ -481,7 +483,7 @@ void deactivate_display(x11::session &x11,
     crtc.clear();
 }
 
-display::vec2<int32_t>
+static display::vec2<int32_t>
 get_min(const std::unordered_map<std::string, display::state> &outputs)
 {
     int32_t min_x = INT32_MAX;
@@ -506,7 +508,7 @@ get_min(const std::unordered_map<std::string, display::state> &outputs)
     return {min_x, min_y};
 }
 
-void set_display_config(
+static void set_display_config(
     const std::unordered_map<std::string, display::state> &outputs,
     x11::session &x11,
     x11::screen_resources &resources)
@@ -682,7 +684,7 @@ void display::output::operator=(const state &state)
     is_tearfree = state.is_tearfree;
 }
 
-void multiply_matrices(float result[3][3], float a[3][3], float b[3][3])
+static void multiply_matrices(float result[3][3], float a[3][3], float b[3][3])
 {
     for (int i = 0; i < 3; i++)
     {
@@ -697,8 +699,8 @@ void multiply_matrices(float result[3][3], float a[3][3], float b[3][3])
     }
 }
 
-void generate_transform_matrix(display::state state,
-                               float transform_matrix[3][3])
+static void generate_transform_matrix(display::state state,
+                                      float transform_matrix[3][3])
 {
     // Initialize identity matrix
     for (int i = 0; i < 3; i++)
@@ -760,7 +762,8 @@ void generate_transform_matrix(display::state state,
     multiply_matrices(transform_matrix, temp, scale);
 }
 
-bool map_tablet_to_output(std::string tablet_name, std::string output_name)
+static bool map_tablet_to_output(std::string tablet_name,
+                                 std::string output_name)
 {
     x11::session x11;
     x11::screen_resources resources(x11);
